@@ -1,7 +1,7 @@
 class DefaultConfigs(object):
     # set default configs, if you don't understand, don't modify
     seed = 666            # set random seed
-    workers = 4           # set number of data loading workers (default: 4)
+    workers = 16           # set number of data loading workers (default: 4)
     beta1 = 0.9           # adam parameters beta1
     beta2 = 0.999         # adam parameters beta2
     mom = 0.9             # momentum parameters
@@ -33,7 +33,7 @@ class DefaultConfigs(object):
     #epochs = 40           # train epochs
     epochs = 50           # clw modify
     #input_size = 512      # model input size or image resied
-    input_size = 320      # clw modify
+    input_size = 384      # clw modify
     #num_classes = 9       # num of classes
     num_classes = 2
     gpu_id = "0"          # default gpu id

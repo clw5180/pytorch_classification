@@ -39,7 +39,7 @@ class FocalLoss_clw(nn.Module):
         return loss.mean()
 
 
-# class FocalLoss_clw(nn.Module):
+# class FocalLoss_clw_old(nn.Module):
 #     def __init__(self, gamma=2.0):
 #         super().__init__()
 #         self.gamma = gamma

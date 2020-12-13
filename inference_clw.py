@@ -9,6 +9,9 @@ from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
 import shutil
+from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
+tb_logger = SummaryWriter()  # clw modify
+from torchvision.utils import make_grid
 
 import torch.backends.cudnn as cudnn
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
@@ -56,13 +59,13 @@ def draw_result(img,
 
 
 if __name__ == '__main__':
-    #model_path = "/home/user/pytorch_img_classification_for_competition/checkpoints/resnet50-checkpoint.pth.tar"
-    #model_path = "/home/user/pytorch_img_classification_for_competition/checkpoints/resnet50-best_loss.pth.tar"
-    # model_path = "/home/user/pytorch_img_classification_for_competition/checkpoints/resnet50-best_model.pth.tar"
+    #model_path = "/home/user/pytorch_classification/checkpoints/resnet50-checkpoint.pth.tar"
+    #model_path = "/home/user/pytorch_classification/checkpoints/resnet50-best_loss.pth.tar"
+    # model_path = "/home/user/pytorch_classification/checkpoints/resnet50-best_model.pth.tar"
 
-    model_path = "/home/user/pytorch_img_classification_for_competition/checkpoints/shufflenet_v2_x1_0-checkpoint.pth.tar"
-    #model_path = "/home/user/pytorch_img_classification_for_competition/checkpoints/shufflenet_v2_x1_0-best_loss.pth.tar"
-    #model_path = "/home/user/pytorch_img_classification_for_competition/checkpoints/shufflenet_v2_x1_0-best_model.pth.tar"
+    model_path = "/home/user/pytorch_classification/checkpoints/shufflenet_v2_x1_0-checkpoint.pth.tar"
+    #model_path = "/home/user/pytorch_classification/checkpoints/shufflenet_v2_x1_0-best_loss.pth.tar"
+    #model_path = "/home/user/pytorch_classification/checkpoints/shufflenet_v2_x1_0-best_model.pth.tar"
 
     input_size = 512
 
@@ -84,6 +87,7 @@ if __name__ == '__main__':
     #official_state_dict = torch.load('/home/user/.cache/torch/checkpoints/resnet50-19c8e357.pth', map_location='cpu')
     #model = models.resnet50(pretrained=False, num_classes=2)   # clw note: 默认是1000个类别的imagenet数据集，而我这里是2个
     model = models.shufflenet_v2_x1_0(pretrained=False, num_classes=2)
+
     model.load_state_dict(my_state_dict)
     model.to('cuda:0')
     model.eval()
@@ -94,14 +98,14 @@ if __name__ == '__main__':
     os.makedirs(os.path.join(save_root_path, '0'))
     os.makedirs(os.path.join(save_root_path, '1'))
 
-    img_path = "/home/user/dataset/gunzi/test_ng"
+    #img_path = "/home/user/dataset/gunzi/test_ng"
     #img_path = "/home/user/dataset/gunzi/val"
-    #img_path = "/home/user/dataset/gunzi/test_toy"
+    img_path = "/home/user/dataset/gunzi/test_toy"
     img_names = os.listdir(img_path)
 
     img_names_ok = []
     img_names_ng = []
-    for img_name in tqdm(img_names):
+    for i, img_name in tqdm(enumerate(img_names)):
         img_file_path = os.path.join(img_path, img_name)
         img_origin = cv2.imread(img_file_path)
         img = img_origin.copy()
@@ -128,7 +132,46 @@ if __name__ == '__main__':
         img_tensor = img_tensor.permute((0, 3, 1, 2))  #  (1, h, w, c) -> (n, c, h, w)
 
         img_tensor = img_tensor.to('cuda:0')
-        output = model(img_tensor)
+        #output = model(img_tensor)
+        ################################################### clw modify ####################################################
+        feature_1, feature_2, feature_3, feature_4, output = model(img_tensor)
+        aaa = feature_4.squeeze()
+        bbb = torch.sum(aaa, dim=0)
+        ccc = bbb.cpu().detach().numpy()
+        ddd = (ccc * 255.0 / ccc.max() ).astype(np.uint8)
+        feature_h = ddd.shape[0]
+        feature_w = ddd.shape[1]
+        img_out = img.copy()  # 注意必须是resize之后的，不要用原图...
+        for i in range(feature_h):
+            for j in range(feature_w):
+                if ddd[i][j] > 128:
+                    x = j*32  # clw note: 如果用的feature map4且对应网络是下采样32倍，可以这么写...
+                    y = i*32
+                    cv2.rectangle(img_out, (x, y), (x+32, y+32), (0, 0, 255), thickness=2)
+        cv2.imwrite(os.path.join(save_root_path, img_name[:-4] + '_show_localization.jpg'), img_out)
+
+
+
+        ################################################### clw modify ####################################################
+        tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), i)
+        tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), i)
+        tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), i)
+        tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), i)
+
+        tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), i)
+        tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), i)
+        tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), i)
+        tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), i)
+
+        ## tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ## tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ## tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ## tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
+
+        tb_logger.add_image('image', make_grid(img_tensor[0], normalize=True), i)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
+                                                                                        # 所以这里要用到make_grid，再归一化到0～1之间；
+        ####################################################################################################################
+
         output = torch.nn.functional.softmax(output, dim=1)  # clw note: (batchsize, class_nums)
         pred_score, pred_label = torch.max(output, 1)
         pred_label = pred_label.item()
