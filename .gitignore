@@ -7,6 +7,9 @@
 *.jpg
 *.png
 *.bmp
+*.gif
+*.tiff
+*.npy
 runs
 logs
 

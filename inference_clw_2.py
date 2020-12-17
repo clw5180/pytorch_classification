@@ -8,8 +8,9 @@ from torchvision import models
 from PIL import Image
 from torchvision import transforms
 from tqdm import tqdm
-from config import configs
 import shutil
+from config import configs
+
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
 tb_logger = SummaryWriter()  # clw modify
 from torchvision.utils import make_grid
@@ -85,7 +86,7 @@ if __name__ == '__main__':
             k=k.replace('last_linear', 'fc')
         my_state_dict[k] = v
 
-    #official_state_dict = torch.load('/home/user/.cache/torch/checkpoints/resnet50-19c8e357.pth', map_location='cpu')
+    official_state_dict = torch.load('/home/user/.cache/torch/checkpoints/resnet50-19c8e357.pth', map_location='cpu')
     #model = models.resnet50(pretrained=False, num_classes=2)   # clw note: 默认是1000个类别的imagenet数据集，而我这里是2个
     model = models.shufflenet_v2_x1_0(pretrained=False, num_classes=configs.num_classes)
 
@@ -93,22 +94,17 @@ if __name__ == '__main__':
     model.to('cuda:0')
     model.eval()
 
-    save_root_path = './output'
-    shutil.rmtree(os.path.join(save_root_path, '0')) # clw note: 注意该路径～！！！！！！
-    shutil.rmtree(os.path.join(save_root_path, '1'))
-    os.makedirs(os.path.join(save_root_path, '0'))
-    os.makedirs(os.path.join(save_root_path, '1'))
+    save_path = './output'
 
-    img_path = "/home/user/dataset/gunzi/test_ng"
+    #img_path = "/home/user/dataset/gunzi/test_ng"
     #img_path = "/home/user/dataset/gunzi/val"
     #img_path = "/home/user/dataset/gunzi/test_toy"
+    img_path = configs.test_folder
     img_names = os.listdir(img_path)
 
     img_names_ok = []
     img_names_ng = []
-    idx = 0
-    for img_name in tqdm(img_names):
-
+    for i, img_name in tqdm(enumerate(img_names)):
         img_file_path = os.path.join(img_path, img_name)
         img_origin = cv2.imread(img_file_path)
         img = img_origin.copy()
@@ -151,28 +147,28 @@ if __name__ == '__main__':
                     x = j*32  # clw note: 如果用的feature map4且对应网络是下采样32倍，可以这么写...
                     y = i*32
                     cv2.rectangle(img_out, (x, y), (x+32, y+32), (0, 0, 255), thickness=2)
-        cv2.imwrite(os.path.join(save_root_path, img_name[:-4] + '_show_localization.jpg'), img_out)
+        cv2.imwrite(os.path.join(save_path, img_name[:-4] + '_show_localization.jpg'), img_out)
+
 
 
         ################################################### clw modify ####################################################
-        # tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), idx)
-        # tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), idx)
-        # tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), idx)
-        # tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), idx)
-        #
-        # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), idx)
-        # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), idx)
-        # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), idx)
-        # tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), idx)
+        tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), i)
+        tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), i)
+        tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), i)
+        tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), i)
 
-        ### tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
+        tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), i)
+        tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), i)
+        tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), i)
+        tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), i)
 
-        # tb_logger.add_image('image', make_grid(img_tensor[0], normalize=True), idx)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
+        ## tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ## tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ## tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ## tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
+
+        tb_logger.add_image('image', make_grid(img_tensor[0], normalize=True), i)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
                                                                                         # 所以这里要用到make_grid，再归一化到0～1之间；
-        idx += 1
         ####################################################################################################################
 
         output = torch.nn.functional.softmax(output, dim=1)  # clw note: (batchsize, class_nums)
@@ -181,15 +177,10 @@ if __name__ == '__main__':
         pred_score = pred_score.item()  # clw note: assume bs=1
 
         #if pred_label == 1 or (pred_label == 0 and pred_score < 0.8) :  # 概率低的，干到ng里面
-        if pred_label == 1:
+        if pred_label != 0:
             img_names_ng.append(img_name)
-            save_path = os.path.join(save_root_path, '1')
         elif pred_label == 0 :
             img_names_ok.append(img_name)
-            save_path = os.path.join(save_root_path, '0')
-
-        else:
-            assert Exception("don't have this class idx !!!")
 
         result = {'pred_label':pred_label, 'pred_score':pred_score}
 

@@ -230,11 +230,13 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         # compute output
         # feature_1:(bs, 256, 1/4, 1/4)  feature_2:(bs, 512, 1/8, 1/8)    feature_3: (bs, 1024, 1/16, 1/16)   feature_3: (bs, 2048, 1/32, 1/32)
-        feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
+        #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
+        outputs = model(inputs) 
         loss = criterion(outputs, targets)
 
         ################################################### clw modify ####################################################
         curr_step = batch_nums * epoch + batch_idx
+        aaa = loss.item()
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
         # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
         # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
@@ -327,7 +329,8 @@ def validate(val_loader, model, criterion, epoch):
 
             # compute output
             #outputs = model(inputs)
-            feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
+            #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
+            outputs = model(inputs)  
             loss = criterion(outputs, targets)
 
             ################################################### clw modify ####################################################

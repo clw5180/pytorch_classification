@@ -108,7 +108,7 @@ model = get_model()
 model.load_state_dict(checkpoint['state_dict'])
 model.eval()
 # test_files = pd.read_csv(configs.submit_example)
-test_file_path = '/home/user/dataset/gunzi/test_ng'
+test_file_path = configs.test_folder
 test_file_names = os.listdir(test_file_path)
 
 with torch.no_grad():

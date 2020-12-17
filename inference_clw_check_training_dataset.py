@@ -94,22 +94,109 @@ if __name__ == '__main__':
     model.eval()
 
     save_root_path = './output'
-    shutil.rmtree(os.path.join(save_root_path, '0')) # clw note: 注意该路径～！！！！！！
-    shutil.rmtree(os.path.join(save_root_path, '1'))
-    os.makedirs(os.path.join(save_root_path, '0'))
-    os.makedirs(os.path.join(save_root_path, '1'))
+    # shutil.rmtree(os.path.join(save_root_path, '0')) # clw note: 注意该路径～！！！！！！
+    # shutil.rmtree(os.path.join(save_root_path, '1'))
 
-    img_path = "/home/user/dataset/gunzi/test_ng"
+
+    #img_path = "/home/user/dataset/gunzi/test_ng"
+    img_path_root = "/home/user/dataset/gunzi/train"
     #img_path = "/home/user/dataset/gunzi/val"
     #img_path = "/home/user/dataset/gunzi/test_toy"
-    img_names = os.listdir(img_path)
+    img_path_0 = os.path.join(img_path_root, '0')
+    img_path_1 = os.path.join(img_path_root, '1')
+    img_names_0 = os.listdir( img_path_0 )
+    img_names_1 = os.listdir( img_path_1 )
+    save_path_0 = os.path.join(save_root_path, 'wrong_0')
+    save_path_1 = os.path.join(save_root_path, 'wrong_1')
+    save_path_feature = os.path.join(save_root_path, 'feature')
+    if not os.path.exists(save_path_0):
+        os.makedirs(save_path_0)
+    if not os.path.exists(save_path_1):
+        os.makedirs(save_path_1)
+    if not os.path.exists(save_path_feature):
+        os.makedirs(save_path_feature)
 
-    img_names_ok = []
-    img_names_ng = []
-    idx = 0
-    for img_name in tqdm(img_names):
 
-        img_file_path = os.path.join(img_path, img_name)
+    for img_name in tqdm(img_names_0):
+        img_file_path = os.path.join(img_path_0, img_name)
+        img_origin = cv2.imread(img_file_path)
+        img = img_origin.copy()
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)   # img = img[:, :, ::-1]
+        img = cv2.resize(img, (input_size, input_size), interpolation=cv2.INTER_LINEAR) # INTER_CUBIC = 2  INTER_LINEAR = 1
+
+        # PIL
+        # img_pil = Image.open(img_file_path).convert('RGB')
+        # img_pil = Image.fromarray(img)
+        # img_pil = transforms.Resize((224, 224))(img_pil)
+        # img = np.asarray(img_pil)
+        # img_tensor = transforms.ToTensor()(img)
+        # img_tensor = transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])(img_tensor)
+        # img_tensor = img_tensor.unsqueeze(0)
+
+        # opencv
+        img_tensor = torch.from_numpy(img)
+        img_tensor = img_tensor.float() / 255.0                               # img_tensor = img_tensor.float()
+        img_tensor[:, :, 0] = (img_tensor[:, :, 0] - 0.485) / 0.229           # img_tensor[:, :, 0] = (img_tensor[:, :, 0] - 123.675) / 58.395
+        img_tensor[:, :, 1] = (img_tensor[:, :, 1] - 0.456) / 0.224           # img_tensor[:, :, 1] = (img_tensor[:, :, 1] - 116.28) / 57.12
+        img_tensor[:, :, 2] = (img_tensor[:, :, 2] - 0.406) / 0.225           # img_tensor[:, :, 2] = (img_tensor[:, :, 2] - 103.53) / 57.375
+        img_tensor = img_tensor.unsqueeze(0) # (h, w, c) -> (1, h, w, c)
+        img_tensor = img_tensor.permute((0, 3, 1, 2))  #  (1, h, w, c) -> (n, c, h, w)
+
+        img_tensor = img_tensor.to('cuda:0')
+        #output = model(img_tensor)
+        ################################################### clw modify ####################################################
+        feature_1, feature_2, feature_3, feature_4, output = model(img_tensor)
+        aaa = feature_4.squeeze()
+        bbb = torch.sum(aaa, dim=0)
+        ccc = bbb.cpu().detach().numpy()
+        ddd = (ccc * 255.0 / ccc.max() ).astype(np.uint8)
+        feature_h = ddd.shape[0]
+        feature_w = ddd.shape[1]
+        img_out = img.copy()  # 注意必须是resize之后的，不要用原图...
+        for i in range(feature_h):
+            for j in range(feature_w):
+                if ddd[i][j] > 128:
+                    x = j*32  # clw note: 如果用的feature map4且对应网络是下采样32倍，可以这么写...
+                    y = i*32
+                    cv2.rectangle(img_out, (x, y), (x+32, y+32), (0, 0, 255), thickness=2)
+        cv2.imwrite(os.path.join(save_path_feature, img_name[:-4] + '_feature.jpg'), img_out)
+
+
+        ################################################### clw modify ####################################################
+        # tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), idx)
+        # tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), idx)
+        # tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), idx)
+        # tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), idx)
+        #
+        # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), idx)
+        # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), idx)
+        # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), idx)
+        # tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), idx)
+
+        ### tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ### tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ### tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
+        ### tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
+
+        # tb_logger.add_image('image', make_grid(img_tensor[0], normalize=True), idx)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
+                                                                                        # 所以这里要用到make_grid，再归一化到0～1之间；
+        ####################################################################################################################
+
+        output = torch.nn.functional.softmax(output, dim=1)  # clw note: (batchsize, class_nums)
+        pred_score, pred_label = torch.max(output, 1)
+        pred_label = pred_label.item()
+        pred_score = pred_score.item()  # clw note: assume bs=1
+
+        #if pred_label == 1 or (pred_label == 0 and pred_score < 0.8) :  # 概率低的，干到ng里面
+        if pred_label == 1:
+            result = {'pred_label':pred_label, 'pred_score':pred_score}
+            draw_result(img_origin, result, os.path.join(save_path_0, img_name))
+
+
+
+    for img_name in tqdm(img_names_1):
+
+        img_file_path = os.path.join(img_path_1, img_name)
         img_origin = cv2.imread(img_file_path)
         img = img_origin.copy()
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)   # img = img[:, :, ::-1]
@@ -172,7 +259,6 @@ if __name__ == '__main__':
 
         # tb_logger.add_image('image', make_grid(img_tensor[0], normalize=True), idx)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
                                                                                         # 所以这里要用到make_grid，再归一化到0～1之间；
-        idx += 1
         ####################################################################################################################
 
         output = torch.nn.functional.softmax(output, dim=1)  # clw note: (batchsize, class_nums)
@@ -181,19 +267,6 @@ if __name__ == '__main__':
         pred_score = pred_score.item()  # clw note: assume bs=1
 
         #if pred_label == 1 or (pred_label == 0 and pred_score < 0.8) :  # 概率低的，干到ng里面
-        if pred_label == 1:
-            img_names_ng.append(img_name)
-            save_path = os.path.join(save_root_path, '1')
-        elif pred_label == 0 :
-            img_names_ok.append(img_name)
-            save_path = os.path.join(save_root_path, '0')
-
-        else:
-            assert Exception("don't have this class idx !!!")
-
-        result = {'pred_label':pred_label, 'pred_score':pred_score}
-
-        draw_result(img_origin, result, os.path.join(save_path, img_name))
-
-    print('ok品总数：', len(img_names_ok))
-    print(img_names_ok)
+        if pred_label == 0:
+            result = {'pred_label':pred_label, 'pred_score':pred_score}
+            draw_result(img_origin, result, os.path.join(save_path_1, img_name))
