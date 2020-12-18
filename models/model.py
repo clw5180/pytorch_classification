@@ -49,6 +49,18 @@ def get_model():
                         nn.Linear(in_features, configs.num_classes),
                          )
         model.cuda()
+    elif configs.model_name == 'shufflenetv2_x0.5':  # clw modify
+        model = models.shufflenet_v2_x0_5(pretrained=True)  # clw modify
+        model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
+        ####
+        mean=0
+        std=0.01
+        bias=0
+        nn.init.normal_(model.fc.weight, mean, std)
+        if hasattr(model.fc, 'bias') and model.fc.bias is not None:
+            nn.init.constant_(model.fc.bias, bias)
+        ####
+        model.cuda()
     elif configs.model_name == 'shufflenet_v2_x1_0':  # clw modify
         #model = models.shufflenet_v2_x1_0(pretrained=False, num_classes=2)  # clw modify
         model = models.shufflenet_v2_x1_0(pretrained=True)  # clw modify

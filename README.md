@@ -24,7 +24,14 @@
 - [ ] AotuAgument
   
 ### 4. 使用方法
-更改`config.py`中的参数，训练执行 `python main.py`，预测执行`python test.py`
+1、训练
+更改`config.py`中的参数，训练执行 `python main.py`，
+主要修改：dataset(路径), bs, lr, epochs(如果是step，还需指定step_size)，input_size, num_classes, gpu_id, model_name, fp16, loss_func, 
+
+2、预测
+执行`python test.py`
+
+
 
 ### 5. submit_example.csv 
 每一行：filename,label

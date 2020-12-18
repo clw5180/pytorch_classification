@@ -100,10 +100,10 @@ def main():
         val_dataset = WeatherDataset(val_files,transform_val)
     else:
         # use offline split dataset
-        train_files = get_files(configs.dataset+"/train/","train")
-        val_files = get_files(configs.dataset+"/val/","train")
-        train_dataset = WeatherDataset(train_files,transform_train)
-        val_dataset = WeatherDataset(val_files,transform_val)
+        train_files = get_files(configs.dataset+"/train/",   "train")
+        val_files = get_files(configs.dataset+"/val/",   "val")
+        train_dataset = WeatherDataset(train_files,  transform_train)
+        val_dataset = WeatherDataset(val_files,  transform_val)
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=configs.bs, shuffle=True,
         num_workers=configs.workers, pin_memory=True,
@@ -117,6 +117,7 @@ def main():
     model.cuda()
     # choose loss func,default is CE
     if configs.loss_func == "LabelSmoothCE":
+        #criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
         criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
     elif configs.loss_func == "CrossEntropy":
         criterion = nn.CrossEntropyLoss().cuda()

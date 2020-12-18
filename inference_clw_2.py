@@ -131,8 +131,11 @@ if __name__ == '__main__':
         img_tensor = img_tensor.permute((0, 3, 1, 2))  #  (1, h, w, c) -> (n, c, h, w)
 
         img_tensor = img_tensor.to('cuda:0')
-        #output = model(img_tensor)
+        output = model(img_tensor)
+
+
         ################################################### clw modify ####################################################
+        '''
         feature_1, feature_2, feature_3, feature_4, output = model(img_tensor)
         aaa = feature_4.squeeze()
         bbb = torch.sum(aaa, dim=0)
@@ -148,7 +151,7 @@ if __name__ == '__main__':
                     y = i*32
                     cv2.rectangle(img_out, (x, y), (x+32, y+32), (0, 0, 255), thickness=2)
         cv2.imwrite(os.path.join(save_path, img_name[:-4] + '_show_localization.jpg'), img_out)
-
+ 
 
 
         ################################################### clw modify ####################################################
@@ -169,6 +172,7 @@ if __name__ == '__main__':
 
         tb_logger.add_image('image', make_grid(img_tensor[0], normalize=True), i)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
                                                                                         # 所以这里要用到make_grid，再归一化到0～1之间；
+        '''
         ####################################################################################################################
 
         output = torch.nn.functional.softmax(output, dim=1)  # clw note: (batchsize, class_nums)
