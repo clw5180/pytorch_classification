@@ -49,16 +49,17 @@ class DefaultConfigs(object):
     #model_name = "se_resnext50_32x4d-model-sgd-512"      # model name to use
     #model_name = "resnet50"
     #model_name = "resnext50_32x4d"
-    #model_name = "shufflenet_v2_x1_0"
-    model_name = "shufflenetv2_x0.5"
+    model_name = "shufflenet_v2_x1_0"
+    #model_name = "shufflenetv2_x0_5"
+    #model_name = "shufflenetv2_x1_5"
     optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     #fp16 = True          # use float16 to train the model
     fp16 = False
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
     keep_batchnorm_fp32 = False  # if use fp16,keep BN layer as fp32
-    #loss_func = "LabelSmoothCE" # "CrossEntropy"、"FocalLoss"、"LabelSmoothCE"   # clw note: TODO
+    loss_func = "CrossEntropy" # "CrossEntropy"、"FocalLoss"、"LabelSmoothCE"   # clw note: TODO
     #loss_func = "FocalLoss_clw"
-    loss_func = "FocalLoss"
+    #loss_func = "FocalLoss"
 
 
     
