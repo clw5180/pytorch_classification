@@ -19,6 +19,9 @@ import torch.backends.cudnn as cudnn
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 cudnn.benchmark = True
 
+# test_folder =  "/dataset/df/cloud/data/test/"      # test images' folder
+test_folder = "/home/user/dataset/gunzi/test_ng/1"
+# test_folder =  "/home/user/dataset/nachi/ai/test"
 
 def draw_result(img,
                 result,  # clw note: such as  {'pred_label':1, 'pred_score':0.98}
@@ -99,7 +102,7 @@ if __name__ == '__main__':
     #img_path = "/home/user/dataset/gunzi/test_ng"
     #img_path = "/home/user/dataset/gunzi/val"
     #img_path = "/home/user/dataset/gunzi/test_toy"
-    img_path = configs.test_folder
+    img_path = test_folder
     img_names = os.listdir(img_path)
 
     img_names_ok = []

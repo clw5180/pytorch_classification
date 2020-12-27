@@ -15,6 +15,10 @@ from utils.misc import get_files
 from IPython import embed
 import cv2
 
+# test_folder =  "/dataset/df/cloud/data/test/"      # test images' folder
+test_folder = "/home/user/dataset/gunzi/test_ng/1"
+# test_folder =  "/home/user/dataset/nachi/ai/test"
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 warnings.filterwarnings("ignore")
 os.environ['CUDA_VISIBLE_DEVICES'] = configs.gpu_id
@@ -38,7 +42,7 @@ class WeatherTTADataset(Dataset):
         filename = self.test_file_names[index]
         #img = Image.open(configs.test_folder + os.sep + filename).convert('RGB')
         ######## clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
-        img = cv2.imread(configs.test_folder + os.sep + filename)
+        img = cv2.imread(test_folder + os.sep + filename)
         img = cv2.resize(img, (configs.input_size, configs.input_size))
         img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img_pil = Image.fromarray(img)

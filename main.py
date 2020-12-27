@@ -20,6 +20,7 @@ from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
 from utils.reader import WeatherDataset
+from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 
 ######## clw modify
 from torchvision.utils import make_grid
@@ -118,7 +119,7 @@ def main():
     # choose loss func,default is CE
     if configs.loss_func == "LabelSmoothCE":
         #criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
-        criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
+        criterion = LabelSmoothingLoss(0.05, configs.num_classes).cuda()
     elif configs.loss_func == "CrossEntropy":
         criterion = nn.CrossEntropyLoss().cuda()
     elif configs.loss_func == "FocalLoss":
@@ -130,8 +131,16 @@ def main():
     optimizer = get_optimizer(model)
     # set lr scheduler method
     if configs.lr_scheduler == "step":
-        #scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=10,gamma=0.1)  # clw note: 学习率每10epoch变为之前的0.1
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=configs.step_size, gamma=0.1)  # clw note: 学习率每10epoch变为之前的0.1
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=configs.step_size, gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[0.8, 0.9]*configs.epochs, gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
+    elif configs.lr_scheduler == 'cosine':
+        #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
+        #scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)
+        # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer,
+        #                                     T_max=configs.epochs * len(train_loader),
+        #                                     T_warmup= 3 * len(train_loader),
+        #                                     eta_min=1e-5)
+        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=1000, eta_min=1e-5)
     elif configs.lr_scheduler == "on_loss":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
     elif configs.lr_scheduler == "on_acc":
@@ -154,9 +163,10 @@ def main():
         start_epoch = checkpoint['epoch']
         model.module.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        logger = Logger(os.path.join(configs.log_dir, '%s_log.txt'%configs.model_name), title=configs.model_name, resume=True)
+        logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name, resume=True) # clw modify
     else:
-        logger = Logger(os.path.join(configs.log_dir, '%s_log.txt'%configs.model_name), title=configs.model_name)
+        logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name)
+        logger.set_name(str(configs))
         logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
     if configs.evaluate:
         print('\nEvaluation only')
@@ -167,9 +177,11 @@ def main():
 
     # Train and val
     for epoch in range(start_epoch, configs.epochs):
-        print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, configs.epochs, optimizer.param_groups[0]['lr']))
+        #print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, configs.epochs, optimizer.param_groups[0]['lr']))
+        print('\nEpoch: [%d | %d] ' % (epoch + 1, configs.epochs))
 
-        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
+        #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
+        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, scheduler, epoch) # clw modify
         val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
         # adjust lr
         if configs.lr_scheduler == "on_loss":
@@ -178,10 +190,12 @@ def main():
             scheduler.step(val_acc)
         elif configs.lr_scheduler == "step":
             scheduler.step(epoch)
+        elif configs.lr_scheduler == "cosine":  # clw modify
+            pass
         elif configs.lr_scheduler == "adjust":
             adjust_learning_rate(optimizer,epoch)
-        else:
-            scheduler.step(epoch)
+        # else:
+        #     scheduler.step(epoch)
         # append logger file
         lr_current = get_lr(optimizer)
         logger.append([lr_current,train_loss, val_loss, train_acc, val_acc])
@@ -209,7 +223,7 @@ def main():
     print(best_acc)
 
 
-def train(train_loader, model, criterion, optimizer, epoch):
+def train(train_loader, model, criterion, optimizer, scheduler, epoch):
     # switch to train mode
     model.train()
 
@@ -237,7 +251,6 @@ def train(train_loader, model, criterion, optimizer, epoch):
 
         ################################################### clw modify ####################################################
         curr_step = batch_nums * epoch + batch_idx
-        aaa = loss.item()
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
         # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
         # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
@@ -261,6 +274,7 @@ def train(train_loader, model, criterion, optimizer, epoch):
         #top5.update(prec5.item(), inputs.size(0))
 
         # compute gradient and do SGD step
+        scheduler.step()
         optimizer.zero_grad()
         if configs.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -287,13 +301,14 @@ def train(train_loader, model, criterion, optimizer, epoch):
         #             top1=top1.avg,
         #             top5=top5.avg,
         #             )
-        bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} '.format(
+        bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | LR: {lr:.6f} | Loss: {loss:.4f} | top1: {top1: .4f} '.format(
                     batch=batch_idx + 1,
                     size=len(train_loader),
                     data=data_time.val,
                     bt=batch_time.val,
                     total=bar.elapsed_td,
                     eta=bar.eta_td,
+                    lr=optimizer.param_groups[0]['lr'],
                     loss=losses.avg,
                     top1=top1.avg,
                     )

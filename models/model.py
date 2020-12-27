@@ -1,7 +1,7 @@
 from pretrainedmodels import models as pm
 import pretrainedmodels
 from torch import nn
-from torchvision import models as tm
+import torchvision
 from config import configs
 from efficientnet_pytorch import EfficientNet
 import torch
@@ -13,7 +13,8 @@ from torchvision import models
 
 weights = {
         "efficientnet-b3":"/data/dataset/detection/pretrainedmodels/efficientnet-b3-c8376fa2.pth",
-        "efficientnet-b4":"/data/dataset/detection/pretrainedmodels/efficientnet-b4-6ed6700e.pth",
+        #"efficientnet-b4":"/data/dataset/detection/pretrainedmodels/efficientnet-b4-6ed6700e.pth",
+        "efficientnet-b4":"/home/user/.cache/torch/checkpoints/efficientnet-b4-6ed6700e.pth",
         "efficientnet-b5":"/data/dataset/detection/pretrainedmodels/efficientnet-b5-b6417697.pth",
         "efficientnet-b6":"/data/dataset/detection/pretrainedmodels/efficientnet-b6-c76e70fd.pth",
         }
@@ -33,7 +34,7 @@ class GeM(nn.Module):
 
 def get_model():
     if configs.model_name.startswith("resnext50_32x4d"):
-        model = tm.resnext50_32x4d(pretrained=True)
+        model = torchvision.models.resnext50_32x4d(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(2048, configs.num_classes)
         model.cuda()
@@ -45,7 +46,7 @@ def get_model():
         in_features = model._fc.in_features
         model._fc = nn.Sequential(
                         nn.BatchNorm1d(in_features),
-                        nn.Dropout(0.5),
+                        nn.Dropout(0.5),  # TODO
                         nn.Linear(in_features, configs.num_classes),
                          )
         model.cuda()

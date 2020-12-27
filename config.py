@@ -1,7 +1,9 @@
+import os
+
 class DefaultConfigs(object):
     # set default configs, if you don't understand, don't modify
     seed = 666            # set random seed
-    workers = 16           # set number of data loading workers (default: 4)
+    workers = 12           # set number of data loading workers (default: 4)
     beta1 = 0.9           # adam parameters beta1
     beta2 = 0.999         # adam parameters beta2
     mom = 0.9             # momentum parameters
@@ -11,17 +13,24 @@ class DefaultConfigs(object):
     start_epoch = 0       # deault start epoch is zero,if use resume change it
     split_online = False  # split dataset to train and val online or offline
 
-    # set changeable configs, you can change one during your experiment
+
     ########################################################################################
-    ### clw note: 文件结构如下： /home/user/dataset/train/0   /home/user/dataset/train/1
+    '''
+    文件结构如下： 
+        /home/user/dataset/train/0   
+        /home/user/dataset/train/1
+    '''
     #dataset = "/dataset/df/cloud/data/dataset/"  # dataset folder with train and val
     #dataset = "/home/user/dataset"
-    dataset = "/home/user/dataset/gunzi/v0.2"
+    #dataset = "/home/user/dataset/gunzi/v0.2"
     #dataset = "/home/user/dataset/nachi/ai"
-    ########################################################################################
-    #test_folder =  "/dataset/df/cloud/data/test/"      # test images' folder
-    test_folder =  "/home/user/dataset/gunzi/test_ng/1"
-    #test_folder =  "/home/user/dataset/nachi/ai/test"
+    dataset = "/home/user/dataset/kaggle2020_leaf"
+
+    #num_classes = 2
+    #num_classes = 6
+    #num_classes = 9       # num of classesstep_size
+    num_classes = len(os.listdir(os.path.join(dataset, 'train')))
+
     #submit_example =  "/dataset/df/cloud/data/submit_example.csv"    # submit example file
     submit_example =  "./submit_example.csv"
     checkpoints = "./checkpoints/"        # path to save checkpoints
@@ -29,37 +38,51 @@ class DefaultConfigs(object):
     submits = "./submits/"                # path to save submission files
 
     #epochs = 40           # train epochs
-    #epochs = 100           # clw modify
-    epochs = 50           # clw modify
-    lr_scheduler = "step"  # lr scheduler method,"adjust","on_loss","on_acc","step"  # clw note: TODO
-    step_size = 20    # clw modify
-    #step_size = 20    # clw modify
+    epochs = 50
+    #epochs = 100
+    #lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",  # clw note: TODO
+    lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",  # clw note: TODO
+    optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
+    #lr = 1e-1
+    lr = 5e-2
     #lr = 2e-3             # learning rate
-    #lr = 2e-2             # clw modify
-    lr = 1e-1             # clw modify
-    #bs = 16
-    bs = 32               # batch size
-
-    input_size = 512      # model input size or image resied
+    #bs = 32               # batch
+    bs = 32
+    #bs = 128              # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     #input_size = 384      # clw modify
-    #num_classes = 9       # num of classesstep_size
-    num_classes = 2
-    #num_classes = 6
-    gpu_id = "0"          # default gpu id
-    #model_name = "se_resnext50_32x4d-model-sgd-512"      # model name to use
+    input_size = 512       # model input size or image resied
+    #input_size = 784      # model input size or image resied
+
+
     #model_name = "resnet50"
     #model_name = "resnext50_32x4d"
+    #model_name = "se_resnext50_32x4d-model-sgd-512"
+    model_name = "efficientnet-b4"  # model_name should be one of: efficientnet-b0, efficientnet-b1, efficientnet-b2, efficientnet-b3, efficientnet-b4, efficientnet-b5, efficientnet-b6, efficientnet-b7, efficientnet-b8, efficientnet-l2
     #model_name = "shufflenet_v2_x1_0"
-    model_name = "shufflenetv2_x0.5"
-    optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
-    #fp16 = True          # use float16 to train the model
-    fp16 = False
+    #model_name = "shufflenetv2_x0.5"
+
+    loss_func = "CrossEntropy" # "CrossEntropy"、"FocalLoss"、"LabelSmoothCE"   # clw note: TODO
+    #loss_func = "FocalLoss_clw"
+    #loss_func = "FocalLoss"
+
+    gpu_id = "0"           # default gpu id
+    fp16 = True          # use float16 to train the model
+    #fp16 = False
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
     keep_batchnorm_fp32 = False  # if use fp16,keep BN layer as fp32
-    #loss_func = "LabelSmoothCE" # "CrossEntropy"、"FocalLoss"、"LabelSmoothCE"   # clw note: TODO
-    #loss_func = "FocalLoss_clw"
-    loss_func = "FocalLoss"
 
 
-    
+
+    def __str__(self):  # 定义打印对象时打印的字符串
+        return  "epochs: " + str(self.epochs) + '\n' + \
+                "lr_scheduler: " + str(self.lr_scheduler) + '\n' + \
+                "optim: " + self.optim + '\n' + \
+                "weight_decay: " + str(self.wd) + '\n' + \
+                "bs: " + str(self.bs) + '\n' + \
+                "input_size: " + str(self.input_size) + '\n' + \
+                "model_name: " + self.model_name + '\n' + \
+                "loss_func: " + self.loss_func + '\n' + \
+                "fp16: " + "True" if self.fp16 else "False"
+
 configs = DefaultConfigs()
+print(str(configs))

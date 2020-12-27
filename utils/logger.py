@@ -57,6 +57,15 @@ class Logger(object):
         self.file.write('\n')
         self.file.flush()
 
+    def set_name(self, name):  # clw added
+        if self.resume:
+            pass
+        # initialize numbers as empty list
+        self.numbers = {}
+        self.file.write(name)
+        self.file.write('\n')
+        self.file.write('\n')
+        self.file.flush()  # clw note: 用来刷新缓冲区的，即将缓冲区中的数据立刻写入文件，同时清空缓冲区，不需要是被动的等待输出缓冲区写入
 
     def append(self, numbers):
         assert len(self.names) == len(numbers), 'Numbers do not match names'

@@ -14,6 +14,10 @@ from torchvision import transforms
 from utils.misc import get_files
 from IPython import embed
 
+# test_folder =  "/dataset/df/cloud/data/test/"      # test images' folder
+test_folder = "/home/user/dataset/gunzi/test_ng/1"
+# test_folder =  "/home/user/dataset/nachi/ai/test"
+
 ImageFile.LOAD_TRUNCATED_IMAGES = True
 warnings.filterwarnings("ignore")
 os.environ['CUDA_VISIBLE_DEVICES'] = configs.gpu_id
@@ -38,7 +42,7 @@ class WeatherTTADataset(Dataset):
                                             ])
     def __getitem__(self,index):
         filename,label_tmp = self.imgs[index]
-        img = Image.open(configs.test_folder + os.sep + filename).convert('RGB')
+        img = Image.open(test_folder + os.sep + filename).convert('RGB')
         img = self.transform_(img,self.aug)
         return img,filename
 
