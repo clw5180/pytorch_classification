@@ -140,7 +140,7 @@ def main():
         #                                     T_max=configs.epochs * len(train_loader),
         #                                     T_warmup= 3 * len(train_loader),
         #                                     eta_min=1e-5)
-        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=1000, eta_min=1e-5)
+        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=500, eta_min=1e-7)
     elif configs.lr_scheduler == "on_loss":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
     elif configs.lr_scheduler == "on_acc":
@@ -268,7 +268,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
 
         # measure accuracy and record loss
         #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
-        prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]  # clw note: 如果只有两个类，此时top5会报错
+        prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]  # clw note: 这里计算acc； 如果只有两个类，此时top5会报错;
         losses.update(loss.item(), inputs.size(0))
         top1.update(prec1.item(), inputs.size(0))
         #top5.update(prec5.item(), inputs.size(0))

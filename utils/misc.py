@@ -8,6 +8,9 @@ from torch import optim as optim_t
 from tqdm import tqdm
 from glob import glob
 from itertools import chain
+import time
+
+time_local = time.localtime()  # clw modify
 
 def get_optimizer(model):
     if configs.optim == "adam":
@@ -44,7 +47,7 @@ def get_optimizer(model):
         print("%s  optimizer will be add later"%configs.optim)
 
 def save_checkpoint(state,is_best,is_best_loss):
-    filename = configs.checkpoints + os.sep + configs.model_name + "-checkpoint.pth.tar"
+    filename = configs.checkpoints + os.sep + configs.model_name + '_' + time.strftime("%Y_%m_%d_%H_%M_%S", time_local) + "-checkpoint.pth.tar" # clw add time
     torch.save(state, filename)
     if is_best:
         message = filename.replace("-checkpoint.pth.tar","-best_model.pth.tar")

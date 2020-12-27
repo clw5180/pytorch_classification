@@ -39,7 +39,7 @@ def get_model():
         model.fc = nn.Linear(2048, configs.num_classes)
         model.cuda()
     elif configs.model_name.startswith("resnet50"):
-        model = tm.resnet50(pretrained=True)
+        model = models.resnet50(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(2048, configs.num_classes)
         model.cuda()

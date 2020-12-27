@@ -37,14 +37,16 @@ class DefaultConfigs(object):
     log_dir = "./logs/"                   # path to save log files
     submits = "./submits/"                # path to save submission files
 
+    epochs = 10
     #epochs = 40           # train epochs
-    epochs = 50
+    #epochs = 50
     #epochs = 100
     #lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",  # clw note: TODO
     lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",  # clw note: TODO
     optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     #lr = 1e-1
-    lr = 5e-2
+    #lr = 5e-2
+    lr = 2e-2
     #lr = 2e-3             # learning rate
     #bs = 32               # batch
     bs = 32
@@ -54,10 +56,10 @@ class DefaultConfigs(object):
     #input_size = 784      # model input size or image resied
 
 
-    #model_name = "resnet50"
+    model_name = "resnet50"
     #model_name = "resnext50_32x4d"
     #model_name = "se_resnext50_32x4d-model-sgd-512"
-    model_name = "efficientnet-b4"  # model_name should be one of: efficientnet-b0, efficientnet-b1, efficientnet-b2, efficientnet-b3, efficientnet-b4, efficientnet-b5, efficientnet-b6, efficientnet-b7, efficientnet-b8, efficientnet-l2
+    #model_name = "efficientnet-b4"  # model_name should be one of: efficientnet-b0, efficientnet-b1, efficientnet-b2, efficientnet-b3, efficientnet-b4, efficientnet-b5, efficientnet-b6, efficientnet-b7, efficientnet-b8, efficientnet-l2
     #model_name = "shufflenet_v2_x1_0"
     #model_name = "shufflenetv2_x0.5"
 
@@ -66,8 +68,8 @@ class DefaultConfigs(object):
     #loss_func = "FocalLoss"
 
     gpu_id = "0"           # default gpu id
-    fp16 = True          # use float16 to train the model
-    #fp16 = False
+    #fp16 = True          # use float16 to train the model
+    fp16 = False
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
     keep_batchnorm_fp32 = False  # if use fp16,keep BN layer as fp32
 
@@ -82,7 +84,7 @@ class DefaultConfigs(object):
                 "input_size: " + str(self.input_size) + '\n' + \
                 "model_name: " + self.model_name + '\n' + \
                 "loss_func: " + self.loss_func + '\n' + \
-                "fp16: " + "True" if self.fp16 else "False"
+                "fp16: " + ("True" if self.fp16 else "False") + '\n'
 
 configs = DefaultConfigs()
 print(str(configs))
