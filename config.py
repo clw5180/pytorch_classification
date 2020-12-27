@@ -9,7 +9,8 @@ class DefaultConfigs(object):
     mom = 0.9             # momentum parameters
     wd = 1e-4             # weight-decay   # clw note: TODO
     resume = None         # path to latest checkpoint (default: none),should endswith ".pth" or ".tar" if used
-    evaluate = False      # just do evaluate
+    evaluate = False      # just do evaluate TODO
+    #evaluate = True
     start_epoch = 0       # deault start epoch is zero,if use resume change it
     split_online = False  # split dataset to train and val online or offline
 
@@ -68,8 +69,8 @@ class DefaultConfigs(object):
     #loss_func = "FocalLoss"
 
     gpu_id = "0"           # default gpu id
-    #fp16 = True          # use float16 to train the model
-    fp16 = False
+    fp16 = True          # use float16 to train the model
+    #fp16 = False
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
     keep_batchnorm_fp32 = False  # if use fp16,keep BN layer as fp32
 

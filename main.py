@@ -103,8 +103,9 @@ def main():
         # use offline split dataset
         train_files = get_files(configs.dataset+"/train/",   "train")
         val_files = get_files(configs.dataset+"/val/",   "val")
-        train_dataset = WeatherDataset(train_files,  transform_train)
-        val_dataset = WeatherDataset(val_files,  transform_val)
+        train_dataset = WeatherDataset(train_files,  transform_train, "train")
+        val_dataset = WeatherDataset(val_files,  transform_val, "val")  # TODO !!!
+        #val_dataset = WeatherDataset(val_files,  transform_val)
     train_loader = torch.utils.data.DataLoader(
         train_dataset, batch_size=configs.bs, shuffle=True,
         num_workers=configs.workers, pin_memory=True,
@@ -112,9 +113,19 @@ def main():
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=configs.bs, shuffle=False,
         num_workers=configs.workers, pin_memory=True
-    )    
+    )
+
     # get model
-    model = get_model()
+    ##model = get_model()
+    ################## clw modify: TODO
+    if not configs.evaluate:
+        model = get_model()
+    else:
+        from torchvision import models
+        my_state_dict = torch.load('/home/user/pytorch_classification/checkpoints/resnet50_2020_12_27_21_35_06-checkpoint.pth.tar')['state_dict']
+        model = models.resnet50(pretrained=False, num_classes=5)  # clw note: 默认是1000个类别的imagenet数据集，而我这里是2个
+        model.load_state_dict(my_state_dict)
+    ##############################
     model.cuda()
     # choose loss func,default is CE
     if configs.loss_func == "LabelSmoothCE":
@@ -170,7 +181,7 @@ def main():
         logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
     if configs.evaluate:
         print('\nEvaluation only')
-        val_loss, val_acc = validate(val_loader, model, criterion, start_epoch)
+        val_loss, val_acc, _ = validate(val_loader, model, criterion, start_epoch)
         print(' Test Loss:  %.8f, Test Acc:  %.2f' % (val_loss, val_acc))
         return
 

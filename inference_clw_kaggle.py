@@ -16,7 +16,7 @@ import torch.backends.cudnn as cudnn
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 cudnn.benchmark = True
 
-img_path = "/home/user/dataset/kaggle2020_leaf/train/0"
+img_path = "/home/user/dataset/kaggle2020_leaf/val/3"
 OUTPUT_DIR = './'
 if DEBUG:
     test = pd.read_csv('/home/user/dataset/sample_submission_file.csv')
@@ -46,7 +46,7 @@ if __name__ == '__main__':
     #         k = k.replace('last_linear', 'fc')
     #     my_state_dict[k] = v
 
-    model_path = '/home/user/pytorch_classification/checkpoints/resnet50_2020_12_27_21_35_06-checkpoint.pth.tar'
+    model_path = '/home/user/pytorch_classification/checkpoints/resnet50_2020_12_28_01_38_12-checkpoint.pth.tar'
     my_state_dict = torch.load(model_path)['state_dict']
     model = models.resnet50(pretrained=False, num_classes=5)   # clw note: 默认是1000个类别的imagenet数据集，而我这里是2个
     model.load_state_dict(my_state_dict)
@@ -56,7 +56,11 @@ if __name__ == '__main__':
     result_dict = {}
     result_label = []
     result_image_names = []
-    correct_cnt = 0
+    class_0_cnt = 0
+    class_1_cnt = 0
+    class_2_cnt = 0
+    class_3_cnt = 0
+    class_4_cnt = 0
     total_cnt = 0
 
     img_names = os.listdir(img_path)
@@ -86,7 +90,15 @@ if __name__ == '__main__':
         pred_score, pred_label = torch.max(output, 1)
         # pred_score = pred_score.item()  # clw note: assume bs=1
         if pred_label == 0:
-            correct_cnt += 1
+            class_0_cnt += 1
+        elif pred_label == 1:
+            class_1_cnt += 1
+        elif pred_label == 2:
+            class_2_cnt += 1
+        elif pred_label == 3:
+            class_3_cnt += 1
+        elif pred_label == 4:
+            class_4_cnt += 1
         total_cnt += 1
 
         result_label.append(pred_label.item())
@@ -98,7 +110,14 @@ if __name__ == '__main__':
 
     df_test = pd.DataFrame(result_dict)
     df_test.to_csv( os.path.join(OUTPUT_DIR, 'submission.csv'), index=False)
-    print('acc: ', correct_cnt / total_cnt)
+
+    #print('acc: ', correct_cnt / total_cnt)
+    print('total_cnt: ', total_cnt)
+    print('class_0_cnt: ', class_0_cnt)
+    print('class_1_cnt: ', class_1_cnt)
+    print('class_2_cnt: ', class_2_cnt)
+    print('class_3_cnt: ', class_3_cnt)
+    print('class_4_cnt: ', class_4_cnt)
     # print(test)
 
 

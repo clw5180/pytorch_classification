@@ -74,7 +74,9 @@ class WeatherDataset(Dataset):
 
             ## 转成pil格式，做transform提供的增强
             img_augmented = cv2.cvtColor(img_augmented, cv2.COLOR_BGR2RGB)
-            img_pil = Image.fromarray(img_augmented)
+
+            img = cv2.cvtColor(img_augmented, cv2.COLOR_BGR2RGB)
+            img_pil = Image.fromarray(img)
             ###############
             img = self.transforms(img_pil)
             return img,label

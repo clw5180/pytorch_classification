@@ -111,6 +111,7 @@ def get_files(root,mode):
             labels.append(int(file.split(os.sep)[-2]))
         all_files = pd.DataFrame({"filename": all_data_path, "label": labels})
         return all_files
+
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     lrs = [5e-4, 1e-4, 1e-5, 1e-6]
