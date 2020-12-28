@@ -30,6 +30,8 @@ from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
 tb_logger = SummaryWriter()  # clw modify
 
+best_acc = 0  # best test accuracy
+best_loss = 999 # lower loss
 
 # for train fp16
 if configs.fp16:
@@ -66,9 +68,20 @@ def makdir():
         os.makedirs(configs.submits)
 makdir()
 
-best_acc = 0  # best test accuracy
-best_loss = 999 # lower loss
 
+def make_weights_for_balanced_classes(data, nclasses):
+    classes_cnt = [0] * nclasses
+    weight_per_class = [0.] * nclasses
+    weight_for_all_images = [0.] * len(data)
+
+    for item in data:
+        classes_cnt[item[1]] += 1   # clw note: data由很多item组成，每个item是图片和label构成的列表; item[1]即 label
+    N = float(sum(classes_cnt))  # clw note: image_nums
+    for i in range(nclasses):
+        weight_per_class[i] = N / float(classes_cnt[i])
+    for idx, item in enumerate(data):
+        weight_for_all_images[idx] = weight_per_class[item[1]]
+    return weight_for_all_images
 
 
 def main():
@@ -95,24 +108,31 @@ def main():
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
+
+
+
     # Data loading code
-    if configs.split_online:
-        # use online random split dataset method
-        total_files = get_files(configs.dataset,"train")
-        train_files, val_files = train_test_split(total_files,test_size = 0.1,stratify=total_files["label"])
-        train_dataset = WeatherDataset(train_files,transform_train)
-        val_dataset = WeatherDataset(val_files, transform_val)
+    train_data_df = get_files(configs.dataset+"/train/",   "train")  # DataFrame: ( image_nums, 2 )
+    val_data_df = get_files(configs.dataset+"/val/",   "val")
+    train_dataset = WeatherDataset(train_data_df,  transform_train, "train")
+    val_dataset = WeatherDataset(val_data_df,  transform_val, "val")
+
+    if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
+        train_data_list = np.array(train_data_df).tolist()
+        weight_for_all_images = make_weights_for_balanced_classes(train_data_list)
+        weightedSampler = torch.utils.data.sampler.WeightedRandomSampler(weight_for_all_images, len(weight_for_all_images))
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                   batch_size=configs.bs,
+                                                   shuffle=True,
+                                                   sampler=weightedSampler,
+                                                   num_workers=configs.workers,
+                                                   pin_memory=True)
     else:
-        # use offline split dataset
-        train_files = get_files(configs.dataset+"/train/",   "train")
-        val_files = get_files(configs.dataset+"/val/",   "val")
-        train_dataset = WeatherDataset(train_files,  transform_train, "train")
-        val_dataset = WeatherDataset(val_files,  transform_val, "val")  # TODO !!!
-        #val_dataset = WeatherDataset(val_files,  transform_val)
-    train_loader = torch.utils.data.DataLoader(
-        train_dataset, batch_size=configs.bs, shuffle=True,
-        num_workers=configs.workers, pin_memory=True,
-    )
+        train_loader = torch.utils.data.DataLoader(train_dataset,
+                                                   batch_size=configs.bs,
+                                                   shuffle=True,
+                                                   num_workers=configs.workers,
+                                                   pin_memory=True)
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=configs.bs, shuffle=False,
         num_workers=configs.workers, pin_memory=True

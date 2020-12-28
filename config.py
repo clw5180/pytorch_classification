@@ -10,7 +10,6 @@ class DefaultConfigs(object):
     wd = 1e-4             # weight-decay   # clw note: TODO
     resume = None         # path to latest checkpoint (default: none),should endswith ".pth" or ".tar" if used
     start_epoch = 0       # deault start epoch is zero,if use resume change it
-    split_online = False  # split dataset to train and val online or offline
 
 
     ########################################################################################
@@ -53,6 +52,7 @@ class DefaultConfigs(object):
     input_size = 512       # model input size or image resied
     #input_size = 784      # model input size or image resied
 
+    sampler = "WeightedSampler"  # default is RandomSampler
 
     model_name = "resnet50"
     #model_name = "resnext50_32x4d"
@@ -80,6 +80,7 @@ class DefaultConfigs(object):
                 "weight_decay: " + str(self.wd) + '\n' + \
                 "bs: " + str(self.bs) + '\n' + \
                 "input_size: " + str(self.input_size) + '\n' + \
+                "sampler: " + str(self.sampler) + '\n' + \
                 "model_name: " + self.model_name + '\n' + \
                 "loss_func: " + self.loss_func + '\n' + \
                 "fp16: " + ("True" if self.fp16 else "False") + '\n'
