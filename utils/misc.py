@@ -46,14 +46,11 @@ def get_optimizer(model):
     else:
         print("%s  optimizer will be add later"%configs.optim)
 
-def save_checkpoint(state,is_best,is_best_loss):
+def save_checkpoint(state, is_best):
     filename = configs.checkpoints + os.sep + configs.model_name + '_' + time.strftime("%Y_%m_%d_%H_%M_%S", time_local) + "-checkpoint.pth.tar" # clw add time
     torch.save(state, filename)
     if is_best:
         message = filename.replace("-checkpoint.pth.tar","-best_model.pth.tar")
-        shutil.copyfile(filename, message)
-    if is_best_loss:
-        message = filename.replace("-checkpoint.pth.tar","-best_loss.pth.tar")
         shutil.copyfile(filename, message)
 
 def get_lr(optimizer):
@@ -105,7 +102,12 @@ def get_files(root,mode):
         all_data_path, labels = [], []
         image_folders = list(map(lambda x: root + x, os.listdir(root)))
         all_images = list(chain.from_iterable(list(map(lambda x: glob(x + "/*"), image_folders))))
-        print("loading train dataset")
+        if mode == "val":
+            print("loading val dataset")
+        elif mode == "train":
+            print("loading train dataset")
+        else:
+            raise Exception("Only have mode train/val/test, please check !!!")
         for file in tqdm(all_images):
             all_data_path.append(file)
             labels.append(int(file.split(os.sep)[-2]))

@@ -9,8 +9,6 @@ class DefaultConfigs(object):
     mom = 0.9             # momentum parameters
     wd = 1e-4             # weight-decay   # clw note: TODO
     resume = None         # path to latest checkpoint (default: none),should endswith ".pth" or ".tar" if used
-    evaluate = False      # just do evaluate TODO
-    #evaluate = True
     start_epoch = 0       # deault start epoch is zero,if use resume change it
     split_online = False  # split dataset to train and val online or offline
 
@@ -42,8 +40,7 @@ class DefaultConfigs(object):
     #epochs = 40           # train epochs
     #epochs = 50
     #epochs = 100
-    #lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",  # clw note: TODO
-    lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",  # clw note: TODO
+    lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",
     optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     #lr = 1e-1
     #lr = 5e-2
@@ -57,7 +54,7 @@ class DefaultConfigs(object):
     #input_size = 784      # model input size or image resied
 
 
-    #model_name = "resnet50"
+    model_name = "resnet50"
     #model_name = "resnext50_32x4d"
     #model_name = "se_resnext50_32x4d-model-sgd-512"
     #model_name = "efficientnet-b4"  # model_name should be one of: efficientnet-b0, efficientnet-b1, efficientnet-b2, efficientnet-b3, efficientnet-b4, efficientnet-b5, efficientnet-b6, efficientnet-b7, efficientnet-b8, efficientnet-l2

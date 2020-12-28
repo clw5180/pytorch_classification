@@ -25,7 +25,7 @@
   
 ### 4. 使用方法
 1、训练
-#### 训练执行 `python main.py`，
+#### 训练执行 `python train.py`，
 更改`config.py`中的参数， 主要修改：dataset(路径), bs, lr, epochs，input_size, gpu_id, model_name, fp16, loss_func,
 务必使用预训练模型，否则最后结果会差很多
 没用：
@@ -75,8 +75,11 @@ Training:  |################################| (358/358) Data: 0.000s | Batch: 0.
 Validating:  |################################| (28/28) Data: 0.120s | Batch: 0.170s | Total: 0:00:04 | ETA: 0:00:01 | Loss: 0.5316 | top1:  81.0624 
 train_loss:0.354261, val_loss:0.531626, train_acc:97.970609, train_5:1.000000, val_acc:81.062356, val_5:1.000000
 
-2、预测
-#### 执行`python test.py`
+2、验证（分析验证集结果，根据真实标签）
+#### 执行 `python evaluate.py`
+
+3、预测（验证集或测试集结果输出，可视化）
+#### 执行 `python inference.py`
 
 
 ### 5. submit_example.csv 

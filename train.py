@@ -1,6 +1,7 @@
 import random
 import time
 import warnings
+import os
 
 import torch.nn as nn
 import torch.nn.parallel
@@ -11,11 +12,12 @@ import torch.utils.data.distributed
 import torchvision.transforms as transforms
 import torchvision.datasets as datasets
 import numpy as np
+
 from PIL import ImageFile
 from config import configs
 from models.model import get_model
 from sklearn.model_selection import train_test_split
-from utils.misc import *
+from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learning_rate, save_checkpoint, get_optimizer
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
@@ -23,6 +25,7 @@ from utils.reader import WeatherDataset
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 
 ######## clw modify
+from evaluate import validate
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
 tb_logger = SummaryWriter()  # clw modify
@@ -96,9 +99,9 @@ def main():
     if configs.split_online:
         # use online random split dataset method
         total_files = get_files(configs.dataset,"train")
-        train_files,val_files = train_test_split(total_files,test_size = 0.1,stratify=total_files["label"])
+        train_files, val_files = train_test_split(total_files,test_size = 0.1,stratify=total_files["label"])
         train_dataset = WeatherDataset(train_files,transform_train)
-        val_dataset = WeatherDataset(val_files,transform_val)
+        val_dataset = WeatherDataset(val_files, transform_val)
     else:
         # use offline split dataset
         train_files = get_files(configs.dataset+"/train/",   "train")
@@ -116,16 +119,7 @@ def main():
     )
 
     # get model
-    ##model = get_model()
-    ################## clw modify: TODO
-    if not configs.evaluate:
-        model = get_model()
-    else:
-        from torchvision import models
-        my_state_dict = torch.load('/home/user/pytorch_classification/checkpoints/resnet50_2020_12_27_21_35_06-checkpoint.pth.tar')['state_dict']
-        model = models.resnet50(pretrained=False, num_classes=5)  # clw note: 默认是1000个类别的imagenet数据集，而我这里是2个
-        model.load_state_dict(my_state_dict)
-    ##############################
+    model = get_model()
     model.cuda()
     # choose loss func,default is CE
     if configs.loss_func == "LabelSmoothCE":
@@ -179,11 +173,6 @@ def main():
         logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name)
         logger.set_name(str(configs))
         logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
-    if configs.evaluate:
-        print('\nEvaluation only')
-        val_loss, val_acc, _ = validate(val_loader, model, criterion, start_epoch)
-        print(' Test Loss:  %.8f, Test Acc:  %.2f' % (val_loss, val_acc))
-        return
 
 
     # Train and val
@@ -193,11 +182,9 @@ def main():
 
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
         train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, scheduler, epoch) # clw modify
-        val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
+        val_acc, test_5 = validate(val_loader, model)
         # adjust lr
-        if configs.lr_scheduler == "on_loss":
-            scheduler.step(val_loss)
-        elif configs.lr_scheduler == "on_acc":
+        if configs.lr_scheduler == "on_acc":
             scheduler.step(val_acc)
         elif configs.lr_scheduler == "step":
             scheduler.step(epoch)
@@ -209,15 +196,12 @@ def main():
         #     scheduler.step(epoch)
         # append logger file
         lr_current = get_lr(optimizer)
-        logger.append([lr_current,train_loss, val_loss, train_acc, val_acc])
-        print('train_loss:%f, val_loss:%f, train_acc:%f, train_5:%f, val_acc:%f, val_5:%f' % (train_loss, val_loss, train_acc, train_5, val_acc, test_5))
+        logger.append([lr_current,train_loss, train_acc, val_acc])
+        print('train_loss:%f, train_acc:%f, train_5:%f, val_acc:%f, val_5:%f' % (train_loss, train_acc, train_5, val_acc, test_5))
 
         # save model
         is_best = val_acc > best_acc
-        is_best_loss = val_loss < best_loss
         best_acc = max(val_acc, best_acc)
-        best_loss = min(val_loss,best_loss)
-
         save_checkpoint({
             #'fold': 0,
             'epoch': epoch + 1,
@@ -225,9 +209,8 @@ def main():
             'train_acc': train_acc,
             'acc': val_acc,
             'best_acc': best_acc,
-            'best_loss': best_loss,
             #'optimizer': optimizer.state_dict(),   # TODO, 可以不保存优化器
-        }, is_best,is_best_loss)
+        }, is_best)
 
     logger.close()
     print('Best acc:')
@@ -330,89 +313,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
 
 
 
-def validate(val_loader, model, criterion, epoch):
-    global best_acc
 
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    losses = AverageMeter()
-    top1 = AverageMeter()
-    #top5 = AverageMeter()
-
-    # switch to evaluate mode
-    model.eval()
-
-    batch_nums = len(val_loader)  # clw add
-
-    end = time.time()
-    bar = Bar('Validating: ', max=len(val_loader))
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(val_loader):
-            # measure data loading time
-            data_time.update(time.time() - end)
-
-            inputs, targets = inputs.cuda(), targets.cuda()
-            #inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)  # clw delete
-
-            # compute output
-            #outputs = model(inputs)
-            #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
-            outputs = model(inputs)  
-            loss = criterion(outputs, targets)
-
-            ################################################### clw modify ####################################################
-            curr_step = batch_nums * epoch + batch_idx
-            tb_logger.add_scalar('loss_val', loss.item(), curr_step)  # clw note: 观察训练集loss曲线
-            # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
-            # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
-            # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), curr_step)
-            # tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), curr_step)
-
-            ### tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
-            ### tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
-            ### tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
-            ### tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
-
-            # tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
-            # 所以这里要用到make_grid，再归一化到0～1之间；
-            ####################################################################################################################
-
-            # measure accuracy and record loss
-            #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
-            prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
-            losses.update(loss.item(), inputs.size(0))
-            top1.update(prec1.item(), inputs.size(0))
-            #top5.update(prec5.item(), inputs.size(0))
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            # plot progress
-            # bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
-            #             batch=batch_idx + 1,
-            #             size=len(val_loader),
-            #             data=data_time.avg,
-            #             bt=batch_time.avg,
-            #             total=bar.elapsed_td,
-            #             eta=bar.eta_td,
-            #             loss=losses.avg,
-            #             top1=top1.avg,
-            #             top5=top5.avg,
-            bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} '.format(
-                        batch=batch_idx + 1,
-                        size=len(val_loader),
-                        data=data_time.avg,
-                        bt=batch_time.avg,
-                        total=bar.elapsed_td,
-                        eta=bar.eta_td,
-                        loss=losses.avg,
-                        top1=top1.avg,
-                        )
-            bar.next()
-    bar.finish()
-    #return (losses.avg, top1.avg, top5.avg)
-    return (losses.avg, top1.avg, 1)
 
 if __name__ == '__main__':
     main()
