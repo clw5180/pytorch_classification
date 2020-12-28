@@ -119,11 +119,11 @@ def main():
 
     if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
         train_data_list = np.array(train_data_df).tolist()
-        weight_for_all_images = make_weights_for_balanced_classes(train_data_list)
+        weight_for_all_images = make_weights_for_balanced_classes(train_data_list, configs.num_classes)
         weightedSampler = torch.utils.data.sampler.WeightedRandomSampler(weight_for_all_images, len(weight_for_all_images))
         train_loader = torch.utils.data.DataLoader(train_dataset,
                                                    batch_size=configs.bs,
-                                                   shuffle=True,
+                                                   #shuffle=True,
                                                    sampler=weightedSampler,
                                                    num_workers=configs.workers,
                                                    pin_memory=True)
@@ -192,7 +192,7 @@ def main():
     else:
         logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name)
         logger.set_name(str(configs))
-        logger.set_names(['Learning Rate', 'Train Loss', 'Valid Loss', 'Train Acc.', 'Valid Acc.'])
+        logger.set_names(['Learning Rate', 'Train Loss', 'Train Acc.', 'Valid Acc.'])
 
 
     # Train and val

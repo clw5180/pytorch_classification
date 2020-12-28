@@ -52,7 +52,8 @@ class DefaultConfigs(object):
     input_size = 512       # model input size or image resied
     #input_size = 784      # model input size or image resied
 
-    sampler = "WeightedSampler"  # default is RandomSampler
+    #sampler = "WeightedSampler"  # default is RandomSampler
+    sampler = "RandomSampler"  # default is RandomSampler
 
     model_name = "resnet50"
     #model_name = "resnext50_32x4d"
