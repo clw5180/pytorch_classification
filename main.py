@@ -219,14 +219,14 @@ def main():
         best_loss = min(val_loss,best_loss)
 
         save_checkpoint({
-            'fold': 0,
+            #'fold': 0,
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'train_acc': train_acc,
             'acc': val_acc,
             'best_acc': best_acc,
             'best_loss': best_loss,
-            'optimizer': optimizer.state_dict(),
+            #'optimizer': optimizer.state_dict(),   # TODO, 可以不保存优化器
         }, is_best,is_best_loss)
 
     logger.close()

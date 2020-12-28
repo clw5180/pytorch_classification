@@ -57,7 +57,7 @@ class DefaultConfigs(object):
     #input_size = 784      # model input size or image resied
 
 
-    model_name = "resnet50"
+    #model_name = "resnet50"
     #model_name = "resnext50_32x4d"
     #model_name = "se_resnext50_32x4d-model-sgd-512"
     #model_name = "efficientnet-b4"  # model_name should be one of: efficientnet-b0, efficientnet-b1, efficientnet-b2, efficientnet-b3, efficientnet-b4, efficientnet-b5, efficientnet-b6, efficientnet-b7, efficientnet-b8, efficientnet-l2

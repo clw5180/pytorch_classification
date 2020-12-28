@@ -1,52 +1,36 @@
-DEBUG = True
-
+DEBUG = False
 
 import torch
 import os
 import cv2
-import numpy as np
 from torchvision import models
-from PIL import Image
-from torchvision import transforms
 from tqdm import tqdm
-from torch import nn
-from config import configs
 import pandas as pd
 import torch.backends.cudnn as cudnn
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 cudnn.benchmark = True
 
-img_path = "/home/user/dataset/kaggle2020_leaf/val/3"
-OUTPUT_DIR = './'
+model_name = "resnet50_2020_12_28_01_43_39-best_model.pth.tar"
 if DEBUG:
-    test = pd.read_csv('/home/user/dataset/sample_submission_file.csv')
+    model_root_path = "/home/user/pytorch_classification/checkpoints"
 else:
-    test = pd.read_csv('../input/cassava-leaf-disease-classification/sample_submission.csv')
-print(test.head())
+    model_root_path = "/kaggle/input/cassava-resnet50-weights/"
 
+model_path = os.path.join(model_root_path, model_name)
 
+if DEBUG:
+    img_root_path = "/home/user/dataset/kaggle2020_leaf/val"
+    img_folder = "1"
+    img_path = os.path.join(img_root_path, img_folder)
+else:
+    img_path = "/kaggle/input/cassava-leaf-disease-classification/test_images"
+
+OUTPUT_CSV_DIR = './'
 
 if __name__ == '__main__':
 
     input_size = 512
 
-    #model_path = "/home/user/pytorch_classification/checkpoints/shufflenet_v2_x1_0-checkpoint.pth.tar"
-    # my_state_dict_origin = torch.load(model_path)['state_dict']
-    # my_state_dict = {}
-    # for k, v in my_state_dict_origin.items():
-    #     if 'tracked' in k:
-    #         continue
-    #     if 'backbone.' in k:
-    #         k = k.replace('backbone.', '')
-    #         # my_state_dict[k[9:]] = v  # clw note：去掉“backbone_”
-    #     elif 'head.' in k:
-    #         k = k.replace('head.', '')
-    #         # my_state_dict[k[5:]] = v
-    #     elif 'last_linear' in k:
-    #         k = k.replace('last_linear', 'fc')
-    #     my_state_dict[k] = v
-
-    model_path = '/home/user/pytorch_classification/checkpoints/resnet50_2020_12_28_01_38_12-checkpoint.pth.tar'
     my_state_dict = torch.load(model_path)['state_dict']
     model = models.resnet50(pretrained=False, num_classes=5)   # clw note: 默认是1000个类别的imagenet数据集，而我这里是2个
     model.load_state_dict(my_state_dict)
@@ -109,16 +93,14 @@ if __name__ == '__main__':
     result_dict['label'] = result_label
 
     df_test = pd.DataFrame(result_dict)
-    df_test.to_csv( os.path.join(OUTPUT_DIR, 'submission.csv'), index=False)
+    df_test.to_csv( os.path.join(OUTPUT_CSV_DIR, 'submission.csv'), index=False)
 
-    #print('acc: ', correct_cnt / total_cnt)
     print('total_cnt: ', total_cnt)
     print('class_0_cnt: ', class_0_cnt)
     print('class_1_cnt: ', class_1_cnt)
     print('class_2_cnt: ', class_2_cnt)
     print('class_3_cnt: ', class_3_cnt)
     print('class_4_cnt: ', class_4_cnt)
-    # print(test)
 
 
 
