@@ -92,17 +92,5 @@ def get_model():
             nn.init.constant_(model.fc.bias, bias)
         ####
         model.cuda()
-    else:
-        pretrained = "imagenet+5k" if configs.model_name.startswith("dpn") else "imagenet"
-        model = pretrainedmodels.__dict__[configs.model_name.split("-model")[0]](num_classes=1000, pretrained=pretrained)
-        if configs.model_name.startswith("pnasnet"):
-            model.last_linear = nn.Linear(4320, configs.num_classes)
-            model.avg_pool = nn.AdaptiveAvgPool2d(1)
-        elif configs.model_name.startswith("inception"):
-            model.last_linear = nn.Linear(1536, configs.num_classes)
-            model.avgpool_1a  = nn.AdaptiveAvgPool2d(1)
-        else:
-            model.last_linear = nn.Linear(2048, configs.num_classes)
-            model.avg_pool = nn.AdaptiveAvgPool2d(1)
-        model.cuda()
+
     return model

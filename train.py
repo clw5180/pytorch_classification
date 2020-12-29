@@ -21,7 +21,7 @@ from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learnin
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
-from utils.reader import WeatherDataset
+from utils.reader import WeatherDataset, albu_transforms
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 
 ######## clw modify
@@ -94,8 +94,7 @@ def main():
         #transforms.RandomResizedCrop(configs.input_size),  # clw delete
         #transforms.Resize( (int(configs.input_size), int(configs.input_size)) ),  # clw modify
         #######transforms.Resize((configs.input_size, configs.input_size) ),  # clw modify: 在外面用cv2实现
-        transforms.RandomHorizontalFlip(p=0.5),
-        transforms.RandomVerticalFlip(p=0.5),
+
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # clw note: r g b
     ])
@@ -165,7 +164,10 @@ def main():
         #                                     T_max=configs.epochs * len(train_loader),
         #                                     T_warmup= 3 * len(train_loader),
         #                                     eta_min=1e-5)
-        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=500, eta_min=1e-7)
+
+        #scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=500, eta_min=1e-7)
+        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=0, eta_min=1e-7)
+
     elif configs.lr_scheduler == "on_loss":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
     elif configs.lr_scheduler == "on_acc":
@@ -192,6 +194,7 @@ def main():
     else:
         logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name)
         logger.set_name(str(configs))
+        logger.set_name(str(albu_transforms))
         logger.set_names(['Learning Rate', 'Train Loss', 'Train Acc.', 'Valid Acc.'])
 
 

@@ -42,14 +42,15 @@ class DefaultConfigs(object):
     lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",
     optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     #lr = 1e-1
-    #lr = 5e-2
     lr = 2e-2
+    #lr = 2e-2
     #lr = 2e-3             # learning rate
-    #bs = 32               # batch
-    bs = 32
+    bs = 32               # batch
+    #bs = 64
     #bs = 128              # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     #input_size = 384      # clw modify
-    input_size = 512       # model input size or image resied
+    #input_size = 512       # model input size or image resied
+    input_size = (512, 384)       # model input size or image resied
     #input_size = 784      # model input size or image resied
 
     #sampler = "WeightedSampler"  # default is RandomSampler
@@ -76,6 +77,7 @@ class DefaultConfigs(object):
 
     def __str__(self):  # 定义打印对象时打印的字符串
         return  "epochs: " + str(self.epochs) + '\n' + \
+                "lr: " + str(self.lr) + '\n' + \
                 "lr_scheduler: " + str(self.lr_scheduler) + '\n' + \
                 "optim: " + self.optim + '\n' + \
                 "weight_decay: " + str(self.wd) + '\n' + \
