@@ -1,7 +1,8 @@
 import torch
 import torch.utils.data
 import torchvision
-
+from utils.reader import WeatherDataset
+import numpy as np
 
 class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
     """Samples elements randomly from a given list of indices for imbalanced dataset
@@ -12,6 +13,9 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
     """
 
     def __init__(self, dataset, indices=None, num_samples=None, callback_get_label=None):
+
+        if isinstance(dataset, WeatherDataset):
+            self.data_list_all = np.array(dataset.label_list).tolist()
 
         # if indices is not provided,
         # all elements in the dataset will be considered
@@ -49,6 +53,8 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
             return dataset.imgs[idx][1]
         elif isinstance(dataset, torch.utils.data.Subset):
             return dataset.dataset.imgs[idx][1]
+        elif isinstance(dataset, WeatherDataset):
+            return self.data_list_all[idx][1]
         else:
             raise NotImplementedError
 
