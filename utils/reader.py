@@ -11,7 +11,7 @@ albu_transforms =  [
                 A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),
                 A.VerticalFlip(p=0.5),
                 A.HorizontalFlip(p=0.5),
-                A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=(3, 3))], p=0.5)
+                A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.5)
                 #A.RandomRotate90(p=0.5)
                 ###dict(type='CLAHE', p=0.5)  # clw note：掉点明显
                 ###dict(type='MotionBlur', blur_limit=12, p=0.5)  # clw note：掉点明显

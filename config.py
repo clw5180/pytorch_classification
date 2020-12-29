@@ -50,7 +50,8 @@ class DefaultConfigs(object):
     #bs = 128              # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     #input_size = 384      # clw modify
     #input_size = 512       # model input size or image resied
-    input_size = (512, 384)       # model input size or image resied
+    #input_size = (512, 384)       # model input size or image resied
+    input_size = (800, 600)       # model input size or image resied
     #input_size = 784      # model input size or image resied
 
     #sampler = "WeightedSampler"  # default is RandomSampler
