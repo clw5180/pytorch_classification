@@ -134,18 +134,7 @@ def main():
     # get model
     model = get_model()
     model.cuda()
-    # choose loss func,default is CE
-    if configs.loss_func == "LabelSmoothCE":
-        #criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
-        criterion = LabelSmoothingLoss(0.05, configs.num_classes).cuda()
-    elif configs.loss_func == "CrossEntropy":
-        criterion = nn.CrossEntropyLoss().cuda()
-    elif configs.loss_func == "FocalLoss":
-        criterion = FocalLoss(gamma=2).cuda()
-    elif configs.loss_func == "FocalLoss_clw":  # clw modify
-        criterion = FocalLoss_clw().cuda()
-    else:
-        criterion = nn.CrossEntropyLoss().cuda()
+
     optimizer = get_optimizer(model)
     # set lr scheduler method
     if configs.lr_scheduler == "step":
@@ -198,7 +187,7 @@ def main():
         print('\nEpoch: [%d | %d] ' % (epoch + 1, configs.epochs))
 
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
-        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, scheduler, epoch) # clw modify
+        train_loss, train_acc, train_5 = train(train_loader, model, optimizer, scheduler, epoch) # clw modify
         val_acc, test_5 = validate(val_loader, model)
         # adjust lr
         if configs.lr_scheduler == "on_acc":
@@ -234,7 +223,7 @@ def main():
     print(best_acc)
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch):
+def train(train_loader, model, optimizer, scheduler, epoch):
     # switch to train mode
     model.train()
 
@@ -247,6 +236,24 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
 
     batch_nums = len(train_loader)  # clw add
 
+    ################################################### clw modify: loss function
+    if configs.loss_func == "LabelSmoothCELoss":
+        # criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
+        criterion = LabelSmoothingLoss(0.05, configs.num_classes)
+    elif configs.loss_func == "CELoss":
+        criterion = nn.CrossEntropyLoss()  # TODO: cuda() ??
+    elif configs.loss_func == "BCELoss":
+        criterion = nn.BCEWithLogitsLoss()
+        targets = torch.zeros(configs.bs, configs.num_classes).scatter_(1, targets, 1)
+        print('targets', targets)
+    elif configs.loss_func == "FocalLoss":
+        criterion = FocalLoss(gamma=2)
+    elif configs.loss_func == "FocalLoss_clw":  # clw modify
+        criterion = FocalLoss_clw()
+    else:
+        raise Exception("No this loss type, please check config.py !!!")
+
+    ###################################################
     bar = Bar('Training: ', max=len(train_loader))
     for batch_idx, (inputs, targets) in enumerate(train_loader):
         # measure data loading time
@@ -257,10 +264,10 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
         # compute output
         # feature_1:(bs, 256, 1/4, 1/4)  feature_2:(bs, 512, 1/8, 1/8)    feature_3: (bs, 1024, 1/16, 1/16)   feature_3: (bs, 2048, 1/32, 1/32)
         #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
-        outputs = model(inputs) 
+        outputs = model(inputs)
         loss = criterion(outputs, targets)
 
-        ################################################### clw modify ####################################################
+        ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
         # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
@@ -275,7 +282,7 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
 
         # tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
                                                                                         # 所以这里要用到make_grid，再归一化到0～1之间；
-        ####################################################################################################################
+        ####################################################
 
         # measure accuracy and record loss
         #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))

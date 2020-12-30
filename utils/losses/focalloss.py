@@ -25,7 +25,7 @@ class FocalLoss_clw(nn.Module):
         super().__init__()
         self.gamma = gamma
         self.alpha = alpha
-        self.loss = nn.CrossEntropyLoss(reduction='none')
+        self.loss = nn.CrossEntropyLoss(reduction='none')  # TODO: weight=torch.tensor([1.0, 1.0]).cuda()
 
     def forward(self, inputs, targets):
         pos_mask = (targets == 1)
