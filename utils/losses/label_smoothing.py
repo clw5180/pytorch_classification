@@ -26,7 +26,7 @@ class LabelSmoothingLoss(nn.Module):
         """
 
         log_output = F.log_softmax(output, dim=1)
-        model_prob = self.one_hot.repeat(target.size(0), 1)
+        model_prob = self.one_hot.repeat(target.size(0), 1).cuda()
         model_prob.scatter_(1, target.unsqueeze(1), self.confidence)
         if self.ignore_index >= 0:
             model_prob.masked_fill_((target == self.ignore_index).unsqueeze(1), 0)
