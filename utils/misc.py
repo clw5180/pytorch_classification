@@ -16,7 +16,7 @@ def get_optimizer(model):
     if configs.optim == "adam":
         return optim_t.Adam(model.parameters(),
                             configs.lr,
-                            betas=(configs.beta1,configs.beta2),
+                            betas=(configs.beta1, configs.beta2),
                             weight_decay=configs.wd)
     elif configs.optim == "radam":
         return RAdam(model.parameters(),

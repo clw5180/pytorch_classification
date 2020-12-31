@@ -28,16 +28,16 @@ class DefaultConfigs(object):
     log_dir = "./logs/"                   # path to save log files
     submits = "./submits/"                # path to save submission files
 
-    epochs = 15
-    lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",
-    optim = "sgd"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
-    lr = 2e-2  # 2e-3、1e-1
+    epochs = 10
+    lr_scheduler = "on_loss"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",
+    optim = "adam"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
+    lr = 5e-4  # sgd: 2e-2、1e-1   adam: 3e-4, 5e-4
     bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
-    input_size = (512, 384)   #   512、384、784、(800, 600)
+    input_size = (512, 512)   # clw note：注意是 w, h   512、384、784、(800, 600)
     sampler = "RandomSampler"   # "RandomSampler"、"WeightedSampler"、"imbalancedSampler"（和WeightedSampler基本一样）
 
-    model_name = "resnet50"  # "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
-    loss_func = "CrossEntropy" #  "LabelSmoothCELoss"、"CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、   # clw note: TODO
+    model_name = "resnet50"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
+    loss_func = "LabelSmoothCELoss" #  "LabelSmoothCELoss"、"CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、   # clw note: TODO
     gpu_id = "0"           # default gpu id
     fp16 = True          # use float16 to train the model
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16

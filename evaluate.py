@@ -71,57 +71,6 @@ def plot_confusion_matrix(cm, classes, title=None, cmap=plt.cm.Reds):  # plt.cm.
     #plt.savefig('cm.jpg', dpi=300)
     plt.show()
 
-
-def validate(val_loader, model):
-    batch_time = AverageMeter()
-    data_time = AverageMeter()
-    top1 = AverageMeter()
-    #top5 = AverageMeter()
-
-    # switch to evaluate mode
-    model.eval()
-
-    batch_nums = len(val_loader)  # clw add
-    end = time.time()
-    bar = Bar('Validating: ', max=len(val_loader))
-    with torch.no_grad():
-        for batch_idx, (inputs, targets) in enumerate(tqdm(val_loader)):
-            # measure data loading time
-            data_time.update(time.time() - end)
-            inputs, targets = inputs.cuda(), targets.cuda()
-
-            # compute output
-            #outputs = model(inputs)
-            #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
-            outputs = model(inputs)
-
-            # measure accuracy and record loss
-            #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
-            prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
-            top1.update(prec1.item(), inputs.size(0))
-            #top5.update(prec5.item(), inputs.size(0))
-
-            # measure elapsed time
-            batch_time.update(time.time() - end)
-            end = time.time()
-
-            # plot progress
-            bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | top1: {top1: .4f} '.format(
-                        batch=batch_idx + 1,
-                        size=len(val_loader),
-                        data=data_time.avg,
-                        bt=batch_time.avg,
-                        total=bar.elapsed_td,
-                        eta=bar.eta_td,
-                        top1=top1.avg,
-                        )
-            bar.next()
-
-    bar.finish()
-    #return (losses.avg, top1.avg, top5.avg)
-    return (top1.avg, 1)
-
-
 def validate_and_analysis(val_loader, model):
     batch_time = AverageMeter()
     data_time = AverageMeter()

@@ -7,15 +7,15 @@ import albumentations as A
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
 albu_transforms =  [
-                A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.5),  # border_mode=cv2.BORDER_REPLICATE
-                A.RandomResizedCrop(600, 800, scale=(0.8, 1.2), ratio=(0.75, 1.3333), p=0.5),  # #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),  # clw note：注意这里顺序是 h, w;
+                A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.8),  # border_mode=cv2.BORDER_REPLICATE
+                #A.RandomResizedCrop(600, 800, scale=(0.8, 1.2), ratio=(0.75, 1.3333), p=0.5),  # #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),  # clw note：注意这里顺序是 h, w;
                 A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),   # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
                 A.VerticalFlip(p=0.5),
                 A.HorizontalFlip(p=0.5),
                 A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.5),
-                A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, p=0.5),  # A.Cutout(num_holes=16, max_h_size=32, max_w_size=32, p=0.5)
-                A.RandomRotate90(p=0.5)
-                ###dict(type='CLAHE', p=0.5)  # clw note：掉点明显
+                # A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, p=0.5),  # A.Cutout(num_holes=16, max_h_size=32, max_w_size=32, p=0.5)
+                # A.RandomRotate90(p=0.5)
+                ###dict(type='CLAHE', p=0.5)  # clw note：gunzi 掉点明显
             ]
 aug = A.Compose(albu_transforms)
 print(str(albu_transforms) + '\n')

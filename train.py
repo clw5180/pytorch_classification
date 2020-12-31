@@ -27,7 +27,7 @@ from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
 
 ######## clw modify
-from evaluate import validate
+from tqdm import tqdm
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
 tb_logger = SummaryWriter()  # clw modify
@@ -138,8 +138,9 @@ def main():
     optimizer = get_optimizer(model)
     # set lr scheduler method
     if configs.lr_scheduler == "step":
-        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=configs.step_size, gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[0.8, 0.9]*configs.epochs, gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
+        #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
+                                                                                                                #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9], gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
     elif configs.lr_scheduler == 'cosine':
         #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
         #scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)
@@ -149,14 +150,15 @@ def main():
         #                                     eta_min=1e-5)
 
         #scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=500, eta_min=1e-7)
-        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=0, eta_min=1e-7)
+        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=0, eta_min=1e-6)  # clw note: 默认cosine是按batch来更新
 
     elif configs.lr_scheduler == "on_loss":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
+        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
     elif configs.lr_scheduler == "on_acc":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5, verbose=False)
     else:
-        scheduler = torch.optim.lr_scheduler.StepLR(optimizer,step_size=6,gamma=0.1)
+        raise Exception("Not implement this lr_scheduler, please modify config.py !!!")
     # for fp16
     if configs.fp16:
         model, optimizer = amp.initialize(model, optimizer,
@@ -181,25 +183,43 @@ def main():
         logger.set_names(['Learning Rate', 'Train Loss', 'Train Acc.', 'Valid Acc.'])
 
 
+    ################################################### clw modify: loss function
+    if configs.loss_func == "LabelSmoothCELoss":
+        # criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
+        criterion = LabelSmoothingLoss(0.05, configs.num_classes)
+    elif configs.loss_func == "CELoss":
+        criterion = nn.CrossEntropyLoss()  # TODO: cuda() ??
+    elif configs.loss_func == "BCELoss":
+        criterion = nn.BCEWithLogitsLoss()
+    elif configs.loss_func == "FocalLoss":
+        criterion = FocalLoss(gamma=2)
+    elif configs.loss_func == "FocalLoss_clw":  # clw modify
+        criterion = FocalLoss_clw()
+    else:
+        raise Exception("No this loss type, please check config.py !!!")
+
+    ###################################################
+
     # Train and val
     for epoch in range(start_epoch, configs.epochs):
         #print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, configs.epochs, optimizer.param_groups[0]['lr']))
         print('\nEpoch: [%d | %d] ' % (epoch + 1, configs.epochs))
 
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
-        train_loss, train_acc, train_5 = train(train_loader, model, optimizer, scheduler, epoch) # clw modify
-        val_acc, test_5 = validate(val_loader, model)
+        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, scheduler, epoch) # clw modify
+        val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
+        tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
+
         # adjust lr
         if configs.lr_scheduler == "on_acc":
             scheduler.step(val_acc)
+        if configs.lr_scheduler == "on_loss":
+            scheduler.step(val_loss)
         elif configs.lr_scheduler == "step":
             scheduler.step(epoch)
-        elif configs.lr_scheduler == "cosine":  # clw modify
-            pass
         elif configs.lr_scheduler == "adjust":
             adjust_learning_rate(optimizer,epoch)
-        # else:
-        #     scheduler.step(epoch)
+
         # append logger file
         lr_current = get_lr(optimizer)
         logger.append([lr_current,train_loss, train_acc, val_acc])
@@ -223,7 +243,7 @@ def main():
     print(best_acc)
 
 
-def train(train_loader, model, optimizer, scheduler, epoch):
+def train(train_loader, model, criterion, optimizer, scheduler, epoch):
     # switch to train mode
     model.train()
 
@@ -236,26 +256,10 @@ def train(train_loader, model, optimizer, scheduler, epoch):
 
     batch_nums = len(train_loader)  # clw add
 
-    ################################################### clw modify: loss function
-    if configs.loss_func == "LabelSmoothCELoss":
-        # criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
-        criterion = LabelSmoothingLoss(0.05, configs.num_classes)
-    elif configs.loss_func == "CELoss":
-        criterion = nn.CrossEntropyLoss()  # TODO: cuda() ??
-    elif configs.loss_func == "BCELoss":
-        criterion = nn.BCEWithLogitsLoss()
-        targets = torch.zeros(configs.bs, configs.num_classes).scatter_(1, targets, 1)
-        print('targets', targets)
-    elif configs.loss_func == "FocalLoss":
-        criterion = FocalLoss(gamma=2)
-    elif configs.loss_func == "FocalLoss_clw":  # clw modify
-        criterion = FocalLoss_clw()
-    else:
-        raise Exception("No this loss type, please check config.py !!!")
 
-    ###################################################
     bar = Bar('Training: ', max=len(train_loader))
     for batch_idx, (inputs, targets) in enumerate(train_loader):
+
         # measure data loading time
         data_time.update(time.time() - end)
         inputs, targets = inputs.cuda(), targets.cuda()
@@ -265,7 +269,12 @@ def train(train_loader, model, optimizer, scheduler, epoch):
         # feature_1:(bs, 256, 1/4, 1/4)  feature_2:(bs, 512, 1/8, 1/8)    feature_3: (bs, 1024, 1/16, 1/16)   feature_3: (bs, 2048, 1/32, 1/32)
         #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
         outputs = model(inputs)
-        loss = criterion(outputs, targets)
+        if configs.loss_func == "BCELoss":
+            targets_one_hot = torch.zeros(len(targets), configs.num_classes).cuda()  # clw note：这里不能写configs.bs，因为最后一个batch可能不是完整的
+            targets_one_hot.scatter_(1, targets.unsqueeze(1), 1)  # one hot
+            loss = criterion(outputs, targets_one_hot)
+        else:
+            loss = criterion(outputs, targets)
 
         ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx
@@ -292,7 +301,8 @@ def train(train_loader, model, optimizer, scheduler, epoch):
         #top5.update(prec5.item(), inputs.size(0))
 
         # compute gradient and do SGD step
-        scheduler.step()
+        if configs.lr_scheduler == "cosine":  # clw modify
+            scheduler.step()
         optimizer.zero_grad()
         if configs.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -336,6 +346,59 @@ def train(train_loader, model, optimizer, scheduler, epoch):
     return (losses.avg, top1.avg, 1)
 
 
+def validate(val_loader, model, criterion, epoch):
+    batch_time = AverageMeter()
+    data_time = AverageMeter()
+    losses = AverageMeter()
+    top1 = AverageMeter()
+    #top5 = AverageMeter()
+
+    # switch to evaluate mode
+    model.eval()
+
+    batch_nums = len(val_loader)  # clw add
+    end = time.time()
+    bar = Bar('Validating: ', max=len(val_loader))
+    with torch.no_grad():
+        for batch_idx, (inputs, targets) in enumerate(val_loader):
+            # measure data loading time
+            data_time.update(time.time() - end)
+            inputs, targets = inputs.cuda(), targets.cuda()
+
+            # compute output
+            #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
+            outputs = model(inputs)
+            val_loss = criterion(outputs, targets)
+            curr_step = batch_nums * epoch + batch_idx
+
+
+            # measure accuracy and record loss
+            #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
+            prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
+            losses.update(val_loss.item(), inputs.size(0))
+            top1.update(prec1.item(), inputs.size(0))
+            #top5.update(prec5.item(), inputs.size(0))
+
+            # measure elapsed time
+            batch_time.update(time.time() - end)
+            end = time.time()
+
+            # plot progress
+            bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} '.format(
+                        batch=batch_idx + 1,
+                        size=len(val_loader),
+                        data=data_time.avg,
+                        bt=batch_time.avg,
+                        total=bar.elapsed_td,
+                        eta=bar.eta_td,
+                        loss=losses.avg,
+                        top1=top1.avg,
+                        )
+            bar.next()
+
+    bar.finish()
+    #return (losses.avg, top1.avg, top5.avg)
+    return (losses.avg, top1.avg, 1)
 
 
 
