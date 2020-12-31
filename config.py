@@ -28,8 +28,8 @@ class DefaultConfigs(object):
     log_dir = "./logs/"                   # path to save log files
     submits = "./submits/"                # path to save submission files
 
-    epochs = 10
-    lr_scheduler = "on_loss"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",
+    epochs = 12
+    lr_scheduler = "adjust"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",
     optim = "adam"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     lr = 5e-4  # sgd: 2e-2、1e-1   adam: 3e-4, 5e-4
     bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).

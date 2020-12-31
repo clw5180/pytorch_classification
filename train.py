@@ -157,6 +157,8 @@ def main():
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
     elif configs.lr_scheduler == "on_acc":
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5, verbose=False)
+    elif configs.lr_scheduler == "adjust":
+        pass
     else:
         raise Exception("Not implement this lr_scheduler, please modify config.py !!!")
     # for fp16
@@ -204,21 +206,22 @@ def main():
     for epoch in range(start_epoch, configs.epochs):
         #print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, configs.epochs, optimizer.param_groups[0]['lr']))
         print('\nEpoch: [%d | %d] ' % (epoch + 1, configs.epochs))
+        if configs.lr_scheduler == "adjust":
+            adjust_learning_rate(optimizer,epoch)
 
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
-        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, scheduler, epoch) # clw modify
+        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
         val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
         tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
 
         # adjust lr
         if configs.lr_scheduler == "on_acc":
             scheduler.step(val_acc)
-        if configs.lr_scheduler == "on_loss":
+        elif configs.lr_scheduler == "on_loss":
             scheduler.step(val_loss)
         elif configs.lr_scheduler == "step":
             scheduler.step(epoch)
-        elif configs.lr_scheduler == "adjust":
-            adjust_learning_rate(optimizer,epoch)
+
 
         # append logger file
         lr_current = get_lr(optimizer)
@@ -243,7 +246,7 @@ def main():
     print(best_acc)
 
 
-def train(train_loader, model, criterion, optimizer, scheduler, epoch):
+def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
     # switch to train mode
     model.train()
 
@@ -301,8 +304,6 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
         #top5.update(prec5.item(), inputs.size(0))
 
         # compute gradient and do SGD step
-        if configs.lr_scheduler == "cosine":  # clw modify
-            scheduler.step()
         optimizer.zero_grad()
         if configs.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
@@ -312,7 +313,9 @@ def train(train_loader, model, criterion, optimizer, scheduler, epoch):
         # clip gradient
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)
         optimizer.step()
-
+        if configs.lr_scheduler == "cosine":  # clw modify
+            scheduler.step()
+            
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()

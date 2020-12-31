@@ -117,11 +117,11 @@ def get_files(root,mode):
 def adjust_learning_rate(optimizer, epoch):
     """Sets the learning rate to the initial LR decayed by 10 every 30 epochs"""
     lrs = [5e-4, 1e-4, 1e-5, 1e-6]
-    if epoch<=10:
+    if epoch<=3:  # if epoch<=10:
         lr = lrs[0]
-    elif epoch>10 and epoch<=16:
+    elif epoch>3 and epoch<=7:  #  elif epoch>10 and epoch<=16:
         lr = lrs[1]
-    elif epoch>16 and epoch<=22:
+    elif epoch>7 and epoch<=11:  # elif epoch>16 and epoch<=22:
         lr = lrs[2]
     else:
         lr = lrs[-1]
