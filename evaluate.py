@@ -12,6 +12,8 @@ import torchvision.transforms as transforms
 from tqdm import tqdm
 import numpy as np
 import matplotlib.pyplot as plt
+import pretrainedmodels
+import torch.nn as nn
 
 # 绘制混淆矩阵  参考：https://www.jianshu.com/p/cd59aed787cf?open_source=weibo_search
 def plot_confusion_matrix(cm, classes, title=None, cmap=plt.cm.Reds):  # plt.cm.Blues
@@ -80,8 +82,7 @@ def validate_and_analysis(val_loader, model):
     # switch to evaluate mode
     model.eval()
 
-    num_classes = model.fc.out_features
-    predict_label_matrix = np.zeros((num_classes, num_classes))  # clw note: 创建混淆矩阵，用于统计比如predict类别1但是预测成了类别4;
+    predict_label_matrix = np.zeros((configs.num_classes, configs.num_classes))  # clw note: 创建混淆矩阵，用于统计比如predict类别1但是预测成了类别4;
     batch_nums = len(val_loader)  # clw add
     end = time.time()
     bar = Bar('Validating: ', max=len(val_loader))
@@ -90,6 +91,7 @@ def validate_and_analysis(val_loader, model):
             # measure data loading time
             data_time.update(time.time() - end)
             inputs, targets = inputs.cuda(), targets.cuda()
+            #inputs = inputs.half()
 
             # compute output
             #outputs = model(inputs)
@@ -128,22 +130,29 @@ def validate_and_analysis(val_loader, model):
 
 if __name__ == "__main__":
     model_root_path = '/home/user/pytorch_classification/checkpoints'
-    model_file_name = 'resnet50_2020_12_28_01_43_39-best_model.pth.tar'
+    #model_file_name = 'resnet50_2021_01_01_10_22_18-checkpoint.pth.tar'
+    #model_file_name = 'resnet50_2020_12_31_20_46_33-checkpoint.pth.tar'
+    #model_file_name = 'resnet50_2020_12_31_20_29_11-checkpoint.pth.tar'
+    model_file_name = 'se_resnext50_32x4d_2021_01_01_20_23_36-checkpoint.pth.tar'
+
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
-    model = models.resnet50(pretrained=False, num_classes=my_state_dict['fc.weight'].shape[0])  # clw note: fc.weight: (num_class, 2048)
+    if 'se_resnext50' in model_file_name:
+        model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
+        model.last_linear=nn.Linear(2048, configs.num_classes)
+        model.avg_pool = nn.AdaptiveAvgPool2d(1)
+    else:
+        model = models.resnet50(pretrained=False, num_classes=configs.num_classes)  # clw note: fc.weight: (num_class, 2048)
     model.load_state_dict(my_state_dict)
+    #model.half()
     model.cuda()
 
 
     val_files = get_files(configs.dataset + "/val/", "val")
     transform_val = transforms.Compose([
-        # transforms.Resize(int(configs.input_size * 1.2)),
-        #########transforms.Resize((configs.input_size, configs.input_size)),  # clw modify: 在外面用cv2实现
-        # transforms.CenterCrop(configs.input_size),    # clw delete
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
-    val_dataset = WeatherDataset(val_files, transform_val)
+    val_dataset = WeatherDataset(val_files, transform_val, mode="val")
     val_loader = torch.utils.data.DataLoader(
         val_dataset, batch_size=configs.bs, shuffle=False,
         num_workers=configs.workers, pin_memory=True
@@ -151,6 +160,7 @@ if __name__ == "__main__":
 
     # 绘制混淆矩阵并打印acc
     predict_label_matrix, val_acc, _ = validate_and_analysis(val_loader, model)
-    plot_confusion_matrix(predict_label_matrix, [i for i in range(model.fc.out_features)])
     print('Test Acc: %.2f' % val_acc)
+    plot_confusion_matrix(predict_label_matrix, [i for i in range(configs.num_classes)])
+
 

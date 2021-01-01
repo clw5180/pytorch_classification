@@ -187,8 +187,7 @@ def main():
 
     ################################################### clw modify: loss function
     if configs.loss_func == "LabelSmoothCELoss":
-        # criterion = LabelSmoothingLoss(0.1, configs.num_classes).cuda()
-        criterion = LabelSmoothingLoss(0.05, configs.num_classes)
+        criterion = LabelSmoothingLoss(0.05, configs.num_classes)  # now better than 0.05 and 0.1
     elif configs.loss_func == "CELoss":
         criterion = nn.CrossEntropyLoss()  # TODO: cuda() ??
     elif configs.loss_func == "BCELoss":
@@ -282,6 +281,8 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
+        tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
+                                                                                        # 所以这里要用到make_grid，再归一化到0～1之间；
         # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
         # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
         # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), curr_step)
@@ -292,8 +293,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         ### tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
         ### tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
 
-        # tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
-                                                                                        # 所以这里要用到make_grid，再归一化到0～1之间；
+
         ####################################################
 
         # measure accuracy and record loss
@@ -315,7 +315,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         optimizer.step()
         if configs.lr_scheduler == "cosine":  # clw modify
             scheduler.step()
-            
+
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()

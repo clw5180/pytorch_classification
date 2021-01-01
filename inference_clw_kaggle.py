@@ -1,4 +1,4 @@
-DEBUG = False
+DEBUG = True
 
 import torch
 import os
@@ -10,7 +10,7 @@ import torch.backends.cudnn as cudnn
 os.environ['CUDA_VISIBLE_DEVICES'] = '0'
 cudnn.benchmark = True
 
-model_name = "resnet50_2020_12_28_01_43_39-best_model.pth.tar"
+model_name = "resnet50_2020_12_31_20_29_11-checkpoint.pth.tar"
 if DEBUG:
     model_root_path = "/home/user/pytorch_classification/checkpoints"
 else:
@@ -20,7 +20,7 @@ model_path = os.path.join(model_root_path, model_name)
 
 if DEBUG:
     img_root_path = "/home/user/dataset/kaggle2020_leaf/val"
-    img_folder = "1"
+    img_folder = "0"
     img_path = os.path.join(img_root_path, img_folder)
 else:
     img_path = "/kaggle/input/cassava-leaf-disease-classification/test_images"
@@ -96,6 +96,7 @@ if __name__ == '__main__':
     df_test.to_csv( os.path.join(OUTPUT_CSV_DIR, 'submission.csv'), index=False)
 
     print('total_cnt: ', total_cnt)
+    print('acc: ', class_0_cnt / total_cnt)
     print('class_0_cnt: ', class_0_cnt)
     print('class_1_cnt: ', class_1_cnt)
     print('class_2_cnt: ', class_2_cnt)
