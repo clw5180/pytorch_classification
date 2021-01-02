@@ -3,6 +3,8 @@ from PIL import Image
 import cv2  # clw modify
 from config import configs  # clw modify
 import albumentations as A
+import os
+import torch
 
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
@@ -20,7 +22,7 @@ albu_transforms =  [
                 ###dict(type='CLAHE', p=0.5)  # clw note：gunzi 掉点明显
             ]
 aug = A.Compose(albu_transforms)
-print(str(albu_transforms) + '\n')
+
 
 class WeatherDataset(Dataset):
     # define dataset
@@ -45,9 +47,7 @@ class WeatherDataset(Dataset):
     def __getitem__(self,index):
         if self.mode == "test":
             filename = self.imgs[index]
-            #img = Image.open(filename).convert('RGB')
-
-            ######## clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
+            #img = Image.open(filename).convert('RGB')  # clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
             img = cv2.imread(filename)
             input_size = configs.input_size
             if isinstance(input_size, tuple):
@@ -55,17 +55,12 @@ class WeatherDataset(Dataset):
             else:
                 img = cv2.resize(img, (configs.input_size, configs.input_size))
 
-            ## 转成pil格式，做transform提供的增强
-            img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img_pil = Image.fromarray(img)
+            img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB) )  ## 转成pil格式，做transform提供的增强
             img = self.transforms(img_pil)
-
             return img, filename
         elif self.mode == "val":
             filename, label = self.imgs[index]
-            #img = Image.open(filename).convert('RGB')
-
-            ######## clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
+            #img = Image.open(filename).convert('RGB')  # clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
             img = cv2.imread(filename)
             input_size = configs.input_size
             if isinstance(input_size, tuple):
@@ -73,17 +68,13 @@ class WeatherDataset(Dataset):
             else:
                 img = cv2.resize(img, (configs.input_size, configs.input_size))
 
-            ## 转成pil格式，做transform提供的增强
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-            img_pil = Image.fromarray(img)
+            img_pil = Image.fromarray(img)              ## 转成pil格式，做transform提供的增强
             img = self.transforms(img_pil)
-
             return img, label
         else:
             filename,label = self.imgs[index]
-            #img = Image.open(filename).convert('RGB')
-
-            ######## clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
+            #img = Image.open(filename).convert('RGB')  # clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
             img = cv2.imread(filename)
             input_size = configs.input_size
 
@@ -101,3 +92,62 @@ class WeatherDataset(Dataset):
             return img,label
 
 
+# ====================================================
+# Dataset
+# ====================================================
+class TrainDataset(Dataset):
+    def __init__(self, df, transform=None):
+        self.df = df
+        self.file_names = df['image_id'].values
+        self.labels = df['label'].values
+        self.transform = transform
+
+    def __len__(self):
+        return len(self.df)
+
+    def __getitem__(self, idx):
+        file_name = self.file_names[idx]
+        file_path = os.path.join(configs.dataset_merge_csv, file_name)   # f'{TRAIN_PATH}/{file_name}'
+        # image = cv2.imread(file_path)
+        # if self.transform:
+        #     augmented = self.transform(image=image)
+        #     image = augmented['image']
+        # label = torch.tensor(self.labels[idx]).long()
+        # return image, label
+
+        ### clw modify
+        img = cv2.imread(file_path)
+        input_size = configs.input_size
+        img_augmented = aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+        if isinstance(input_size, tuple):
+            img_augmented = cv2.resize(img_augmented, configs.input_size)
+        else:
+            img_augmented = cv2.resize(img_augmented, (configs.input_size, configs.input_size))
+
+        ## 转成pil格式，做transform提供的增强
+        img_augmented = cv2.cvtColor(img_augmented, cv2.COLOR_BGR2RGB)
+        img_pil = Image.fromarray(img_augmented)
+        ###############
+        img = self.transform(img_pil)
+        label = torch.tensor(self.labels[idx]).long()
+        return img, label
+
+
+# class TestDataset(Dataset):
+#     def __init__(self, df, transform=None):
+#         self.df = df
+#         self.file_names = df['image_id'].values
+#         self.transform = transform
+#
+#     def __len__(self):
+#         return len(self.df)
+#
+#     def __getitem__(self, idx):
+#         file_name = self.file_names[idx]
+#         file_path = f'{TEST_PATH}/{file_name}'
+#         image = cv2.imread(file_path)
+#         image = cv2.cvtColor(image, cv2.COLOR_BGR2RGB)
+#         if self.transform:
+#             augmented = self.transform(image=image)
+#             image = augmented['image']
+#         return image

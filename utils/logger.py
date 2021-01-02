@@ -57,9 +57,13 @@ class Logger(object):
         self.file.write('\n')
         self.file.flush()
 
-    def set_name(self, name):  # clw added
+    def info(self, name):  # clw added
         if self.resume:
             pass
+
+        # Step1: 先在终端打印
+        print(name + '\n')
+
         # initialize numbers as empty list
         self.numbers = {}
         self.file.write(name)

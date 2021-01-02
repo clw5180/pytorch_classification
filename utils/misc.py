@@ -47,7 +47,8 @@ def get_optimizer(model):
         print("%s  optimizer will be add later"%configs.optim)
 
 def save_checkpoint(state, is_best):
-    filename = configs.checkpoints + os.sep + configs.model_name + '_' + time.strftime("%Y_%m_%d_%H_%M_%S", time_local) + "-checkpoint.pth.tar" # clw add time
+    fold = state['fold']
+    filename = configs.checkpoints + os.sep + configs.model_name + '_' + time.strftime("%Y_%m_%d_%H_%M_%S", time_local) + "_fold" + str(fold) + "_-checkpoint.pth.tar" # clw add time
     torch.save(state, filename)
     if is_best:
         message = filename.replace("-checkpoint.pth.tar","-best_model.pth.tar")

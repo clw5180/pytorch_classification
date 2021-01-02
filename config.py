@@ -7,7 +7,7 @@ class DefaultConfigs(object):
     beta1 = 0.9           # adam parameters beta1
     beta2 = 0.999         # adam parameters beta2
     mom = 0.9             # momentum parameters
-    wd = 1e-4             # weight-decay   # clw note: TODO
+    wd = 1e-6             # weight-decay   # clw note: TODO
     resume = None         # path to latest checkpoint (default: none),should endswith ".pth" or ".tar" if used
     start_epoch = 0       # deault start epoch is zero,if use resume change it
 
@@ -29,21 +29,22 @@ class DefaultConfigs(object):
     #dataset = "/home/user/dataset/gunzi/v0.2"
     #dataset = "/home/user/dataset/nachi/ai"
     dataset = "/home/user/dataset/kaggle2020_leaf"
+    dataset_merge_csv = "/home/user/dataset/kaggle_cassava_merge/train"
     num_classes = len(os.listdir(os.path.join(dataset, 'train')))
     submit_example =  "./submit_example.csv"
     checkpoints = "./checkpoints/"        # path to save checkpoints
     log_dir = "./logs/"                   # path to save log files
     submits = "./submits/"                # path to save submission files
 
-    epochs = 10
-    lr_scheduler = "cosine"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
+    epochs = 5
+    lr_scheduler = "adjust"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
     optim = "adam"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     lr = 1e-4  # sgd: 2e-2、1e-1   adam: 3e-4, 5e-4
-    bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
+    bs = 64         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     input_size = (512, 512)   # clw note：注意是 w, h   512、384、784、(800, 600)
     sampler = "RandomSampler"   # "RandomSampler"、"WeightedSampler"、"imbalancedSampler"（和WeightedSampler基本一样）
 
-    model_name = "se_resnext101_32x4d"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
+    model_name = "resnet50"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
     loss_func = "LabelSmoothCELoss" #  "LabelSmoothCELoss"、"CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、   # clw note: TODO
     gpu_id = "0"           # default gpu id
     fp16 = True          # use float16 to train the model
@@ -62,7 +63,6 @@ class DefaultConfigs(object):
                 "sampler: " + str(self.sampler) + '\n' + \
                 "model_name: " + self.model_name + '\n' + \
                 "loss_func: " + self.loss_func + '\n' + \
-                "fp16: " + ("True" if self.fp16 else "False") + '\n'
+                "fp16: " + ("True" if self.fp16 else "False")
 
 configs = DefaultConfigs()
-print(str(configs))
