@@ -7,7 +7,8 @@ class DefaultConfigs(object):
     beta1 = 0.9           # adam parameters beta1
     beta2 = 0.999         # adam parameters beta2
     mom = 0.9             # momentum parameters
-    wd = 1e-6             # weight-decay   # clw note: TODO
+    #wd = 1e-4             # weight-decay   # clw note: origin is 1e-4, but kaggle top solution use 1e-6 TODO
+    wd = 1e-6
     resume = None         # path to latest checkpoint (default: none),should endswith ".pth" or ".tar" if used
     start_epoch = 0       # deault start epoch is zero,if use resume change it
 
@@ -36,21 +37,26 @@ class DefaultConfigs(object):
     log_dir = "./logs/"                   # path to save log files
     submits = "./submits/"                # path to save submission files
 
-    epochs = 5
-    lr_scheduler = "adjust"  # lr scheduler method: "step", "cosine", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
-    optim = "adam"        # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
-    lr = 1e-4  # sgd: 2e-2、1e-1   adam: 3e-4, 5e-4
-    bs = 64         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
-    input_size = (512, 512)   # clw note：注意是 w, h   512、384、784、(800, 600)
     sampler = "RandomSampler"   # "RandomSampler"、"WeightedSampler"、"imbalancedSampler"（和WeightedSampler基本一样）
 
-    model_name = "resnet50"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
-    loss_func = "LabelSmoothCELoss" #  "LabelSmoothCELoss"、"CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、   # clw note: TODO
+    optim = "adam"  # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
+    if optim == "adam":
+        epochs = 10
+        lr_scheduler = "cosine_change_per_epoch"  # lr scheduler method: "step", "cosine_per_epoch", "cosine_per_batch", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
+        lr = 1e-4  # sgd: 2e-2、1e-1   adam: 1e-4, 3e-4, 5e-4
+    elif optim == "sgd":
+        epochs = 10
+        lr_scheduler = "cosine_change_per_epoch"
+        lr = 2e-2
+
+    bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
+    input_size = (512, 512)   # clw note：注意是 w, h   512、384、784、(800, 600)
+    model_name = "efficientnet-b4"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
+    loss_func = "LabelSmoothCELoss" #  "LabelSmoothCELoss"、"CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、
+    label_smooth_epsilon = 0.2
     gpu_id = "0"           # default gpu id
     fp16 = True          # use float16 to train the model
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
-    keep_batchnorm_fp32 = False  # if use fp16,keep BN layer as fp32
-
 
     def __str__(self):  # 定义打印对象时打印的字符串
         return  "epochs: " + str(self.epochs) + '\n' + \
@@ -63,6 +69,7 @@ class DefaultConfigs(object):
                 "sampler: " + str(self.sampler) + '\n' + \
                 "model_name: " + self.model_name + '\n' + \
                 "loss_func: " + self.loss_func + '\n' + \
+                ("label_smooth_epsilon: " + str(self.label_smooth_epsilon) + '\n' ) if self.loss_func == "LabelSmoothCELoss" else None + \
                 "fp16: " + ("True" if self.fp16 else "False")
 
 configs = DefaultConfigs()

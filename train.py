@@ -1,3 +1,4 @@
+'''
 import random
 import time
 import warnings
@@ -280,8 +281,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
-        tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
-                                                                                        # 所以这里要用到make_grid，再归一化到0～1之间；
+        #tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 注意这样会导致训练速度下降很多,gpu利用率明显降低 !!!从97左右降到60 70左右
+                                                                                        # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，所以这里要用到make_grid，再归一化到0～1之间；
+
         # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
         # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
         # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), curr_step)
@@ -309,6 +311,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
                 scaled_loss.backward()
         else:
             loss.backward()
+
         # clip gradient
         torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)
         optimizer.step()
@@ -406,3 +409,4 @@ def validate(val_loader, model, criterion, epoch):
 
 if __name__ == '__main__':
     main()
+'''

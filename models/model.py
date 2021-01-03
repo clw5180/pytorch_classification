@@ -9,6 +9,7 @@ from torch.nn.parameter import Parameter
 import torch.nn.functional as F
 from torch.nn.parameter import Parameter
 from torchvision import models
+import timm  # clw modify
 
 weights = {
         "efficientnet-b3":"/data/dataset/detection/pretrainedmodels/efficientnet-b3-c8376fa2.pth",
@@ -116,19 +117,30 @@ def get_model():
         model = models.resnet50(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(2048, configs.num_classes)
+
+        # model = timm.create_model("resnet50", pretrained=True)
+        # model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
         model.cuda()
-    elif configs.model_name.startswith("efficient"):
-        # efficientNet
-        model_name = configs.model_name[:15]
-        model = EfficientNet.from_name(model_name)
-        model.load_state_dict(torch.load(weights[model_name]))
-        in_features = model._fc.in_features
-        model._fc = nn.Sequential(
-                        nn.BatchNorm1d(in_features),
-                        nn.Dropout(0.5),  # TODO
-                        nn.Linear(in_features, configs.num_classes),
-                         )
+    elif configs.model_name.startswith("efficientnet-b0"):
+        model = timm.create_model('tf_efficientnet_b0_ns', pretrained=True)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
         model.cuda()
+    elif configs.model_name.startswith("efficientnet-b4"):
+        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+        model.cuda()
+    # elif configs.model_name.startswith("efficientnet-b"):
+    #     # efficientNet
+    #     model_name = configs.model_name[:15]
+    #     model = EfficientNet.from_name(model_name)
+    #     model.load_state_dict(torch.load(weights[model_name]))
+    #     in_features = model._fc.in_features
+    #     model._fc = nn.Sequential(
+    #                     nn.BatchNorm1d(in_features),
+    #                     nn.Dropout(0.5),  # TODO
+    #                     nn.Linear(in_features, configs.num_classes),
+    #                      )
+    #     model.cuda()
     elif configs.model_name == 'shufflenetv2_x0_5':  # clw modify
         model = models.shufflenet_v2_x0_5(pretrained=True)  # clw modify
         model.fc = nn.Linear(model.fc.in_features, configs.num_classes)

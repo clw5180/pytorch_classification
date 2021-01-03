@@ -47,8 +47,7 @@ if configs.fp16:
     except ImportError:
         raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
-#ImageFile.LOAD_TRUNCATED_IMAGES = True
-#warnings.filterwarnings("ignore")
+warnings.filterwarnings("ignore")
 os.environ['CUDA_VISIBLE_DEVICES'] = configs.gpu_id
 
 # set random seed
@@ -80,7 +79,8 @@ def main():
 
 
     target_col = 'label'
-    train_df_merge = pd.read_csv('/home/user/dataset/kaggle_cassava_merge/merged.csv')
+    #train_df_merge = pd.read_csv('/home/user/dataset/kaggle_cassava_merge/merged.csv')
+    train_df_merge = pd.read_csv('/home/user/dataset/kaggle_cassava_merge/2020.csv')  # only use 2020 dataset
 
     folds = train_df_merge.copy()
     Fold = StratifiedKFold(n_splits=n_fold, shuffle=True, random_state=configs.seed)
@@ -92,23 +92,17 @@ def main():
     start_epoch = configs.start_epoch
 
     transform_train = transforms.Compose([
-        # transforms.RandomResizedCrop(configs.input_size),  # clw delete
-        # transforms.Resize( (int(configs.input_size), int(configs.input_size)) ),  # clw modify
-        #######transforms.Resize((configs.input_size, configs.input_size) ),  # clw modify: 在外面用cv2实现
-
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # clw note: r g b
     ])
 
     transform_val = transforms.Compose([
-        # transforms.Resize(int(configs.input_size * 1.2)),
-        #########transforms.Resize((configs.input_size, configs.input_size)),  # clw modify: 在外面用cv2实现
-        # transforms.CenterCrop(configs.input_size),    # clw delete
         transforms.ToTensor(),
         transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
     ])
 
-    for fold in range(n_fold):
+    #for fold in range(n_fold):
+    for fold in [0, 1, 2, 3, 4]:  # clw modify
         best_acc = 0  # best test accuracy
         logger.info(f"========== fold: {fold} training ==========")
 
@@ -146,17 +140,13 @@ def main():
             #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
                                                                                                                     #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
             scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9], gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
-        elif configs.lr_scheduler == 'cosine':
+        elif configs.lr_scheduler == "cosine_change_per_batch":
             #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
             #scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)
-            # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer,
-            #                                     T_max=configs.epochs * len(train_loader),
-            #                                     T_warmup= 3 * len(train_loader),
-            #                                     eta_min=1e-5)
-
-            #scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=500, eta_min=1e-7)
-            scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=0, eta_min=1e-6)  # clw note: 默认cosine是按batch来更新
-
+            # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer, T_max=configs.epochs * len(train_loader), T_warmup= 3 * len(train_loader), eta_min=1e-5)
+            scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=0, eta_min=1e-6)  # clw note: 默认cosine是按batch来更新 ; warmup_iters=500, eta_min=1e-7
+        elif configs.lr_scheduler == "cosine_change_per_epoch":
+            scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1, eta_min=1e-6)  # clw note: usually 1e-6
         elif configs.lr_scheduler == "on_loss":
             #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
             scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
@@ -170,8 +160,8 @@ def main():
         if configs.fp16:
             model, optimizer = amp.initialize(model, optimizer,
                                               opt_level=configs.opt_level,
-                                              keep_batchnorm_fp32= None if configs.opt_level == "O1" else configs.keep_batchnorm_fp32,
-                                              verbosity=0  # 不打印amp相关的日志
+                                              keep_batchnorm_fp32= None if configs.opt_level == "O1" else False,
+                                              # verbosity=0  # 不打印amp相关的日志
                                               )
         if configs.resume:
                 # Load checkpoint.
@@ -189,9 +179,9 @@ def main():
 
         ################################################### clw modify: loss function
         if configs.loss_func == "LabelSmoothCELoss":
-            criterion = LabelSmoothingLoss(0.05, configs.num_classes)  # now better than 0.05 and 0.1
+            criterion = LabelSmoothingLoss(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
         elif configs.loss_func == "CELoss":
-            criterion = nn.CrossEntropyLoss()  # TODO: cuda() ??
+            criterion = nn.CrossEntropyLoss()
         elif configs.loss_func == "BCELoss":
             criterion = nn.BCEWithLogitsLoss()
         elif configs.loss_func == "FocalLoss":
@@ -206,12 +196,11 @@ def main():
         # Train and val
         for epoch in range(start_epoch, configs.epochs):
             #print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, configs.epochs, optimizer.param_groups[0]['lr']))
-            print('Epoch: [%d | %d] ' % (epoch + 1, configs.epochs))
+            print('\nEpoch: [%d | %d] ' % (epoch + 1, configs.epochs))
             if configs.lr_scheduler == "adjust":
-                adjust_learning_rate(optimizer,epoch)
+                adjust_learning_rate(optimizer, epoch)
 
-            #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
-            train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
+            train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine_change_per_batch" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
             val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
             tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
 
@@ -221,7 +210,9 @@ def main():
             elif configs.lr_scheduler == "on_loss":
                 scheduler.step(val_loss)
             elif configs.lr_scheduler == "step":
-                scheduler.step(epoch)
+                scheduler.step()
+            elif configs.lr_scheduler == "cosine_change_per_epoch":
+                scheduler.step()
 
 
             # append logger file
@@ -242,9 +233,10 @@ def main():
                 #'optimizer': optimizer.state_dict(),   # TODO, 可以不保存优化器
             }, is_best)
 
-        logger.close()
         print('Best acc:')
         print(best_acc)
+
+    logger.close()
 
 
 def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
@@ -255,23 +247,16 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
     data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
-    #top5 = AverageMeter()
     end = time.time()
 
     batch_nums = len(train_loader)  # clw add
-
-
     bar = Bar('Training: ', max=len(train_loader))
     for batch_idx, (inputs, targets) in enumerate(train_loader):
-
         # measure data loading time
         data_time.update(time.time() - end)
         inputs, targets = inputs.cuda(), targets.cuda()
-        #inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)  # clw delete
 
         # compute output
-        # feature_1:(bs, 256, 1/4, 1/4)  feature_2:(bs, 512, 1/8, 1/8)    feature_3: (bs, 1024, 1/16, 1/16)   feature_3: (bs, 2048, 1/32, 1/32)
-        #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
         outputs = model(inputs)
         if configs.loss_func == "BCELoss":
             targets_one_hot = torch.zeros(len(targets), configs.num_classes).cuda()  # clw note：这里不能写configs.bs，因为最后一个batch可能不是完整的
@@ -280,30 +265,14 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         else:
             loss = criterion(outputs, targets)
 
-        ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
-        tb_logger.add_image('image', make_grid(inputs[0], normalize=True), curr_step)  # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，
-                                                                                        # 所以这里要用到make_grid，再归一化到0～1之间；
-        # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
-        # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
-        # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), curr_step)
-        # tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), curr_step)
-
-        ### tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
-
-
-        ####################################################
 
         # measure accuracy and record loss
         #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
         prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]  # clw note: 这里计算acc； 如果只有两个类，此时top5会报错;
         losses.update(loss.item(), inputs.size(0))
         top1.update(prec1.item(), inputs.size(0))
-        #top5.update(prec5.item(), inputs.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -312,28 +281,19 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
                 scaled_loss.backward()
         else:
             loss.backward()
+
         # clip gradient
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)  # clw note: max_norm top方案1000, or 10, 20；TODO
+
         optimizer.step()
-        if configs.lr_scheduler == "cosine":  # clw modify
-            scheduler.step()
+        if scheduler is not None:
+            scheduler.step()  # clw modify
 
         # measure elapsed time
         batch_time.update(time.time() - end)
         end = time.time()
 
         # plot progress
-        # bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
-        #             batch=batch_idx + 1,
-        #             size=len(train_loader),
-        #             data=data_time.val,
-        #             bt=batch_time.val,
-        #             total=bar.elapsed_td,
-        #             eta=bar.eta_td,
-        #             loss=losses.avg,
-        #             top1=top1.avg,
-        #             top5=top5.avg,
-        #             )
         bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | LR: {lr:.6f} | Loss: {loss:.4f} | top1: {top1: .4f} '.format(
                     batch=batch_idx + 1,
                     size=len(train_loader),
@@ -347,7 +307,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
                     )
         bar.next()
     bar.finish()
-    #return (losses.avg, top1.avg, top5.avg)
     return (losses.avg, top1.avg, 1)
 
 
@@ -356,7 +315,6 @@ def validate(val_loader, model, criterion, epoch):
     data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
-    #top5 = AverageMeter()
 
     # switch to evaluate mode
     model.eval()
@@ -371,18 +329,13 @@ def validate(val_loader, model, criterion, epoch):
             inputs, targets = inputs.cuda(), targets.cuda()
 
             # compute output
-            #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
             outputs = model(inputs)
             val_loss = criterion(outputs, targets)
-            curr_step = batch_nums * epoch + batch_idx
-
 
             # measure accuracy and record loss
-            #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
             prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
             losses.update(val_loss.item(), inputs.size(0))
             top1.update(prec1.item(), inputs.size(0))
-            #top5.update(prec5.item(), inputs.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -402,7 +355,6 @@ def validate(val_loader, model, criterion, epoch):
             bar.next()
 
     bar.finish()
-    #return (losses.avg, top1.avg, top5.avg)
     return (losses.avg, top1.avg, 1)
 
 

@@ -9,13 +9,30 @@ import torch
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
 albu_transforms =  [
-                A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.5),  # border_mode=cv2.BORDER_REPLICATE
-                A.VerticalFlip(p=0.5),
-                A.HorizontalFlip(p=0.5),
-                #A.RandomResizedCrop(600, 800, scale=(0.8, 1.2), ratio=(0.75, 1.3333), p=0.5),  # #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),  # clw note：注意这里顺序是 h, w;
-                #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),
+                ### single r50 89.1 solution
+                # A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.8),  # border_mode=cv2.BORDER_REPLICATE
+                # A.VerticalFlip(p=0.5),
+                # A.HorizontalFlip(p=0.5),
+                # A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),   # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
+                # A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.5),
+
+                ### 2019 top1 solution
+                # A.ShiftScaleRotate(shift_limit=0, scale_limit=0, rotate_limit=30, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.5),
+                # A.VerticalFlip(p=0.5),
+                # A.HorizontalFlip(p=0.5),
+                # A.RandomResizedCrop(600, 800, scale=(0.6, 1.0), ratio=(0.6, 1.666666), p=0.5)
+
+                ### new try
+                A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.8),  # border_mode=cv2.BORDER_REPLICATE
+                A.OneOf([A.VerticalFlip(p=1), A.HorizontalFlip(p=1)], p=0.5),
                 A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),   # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
                 A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.5),
+                A.CoarseDropout(max_holes=512, p=0.3),
+                A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
+
+
+                #A.RandomResizedCrop(600, 800, scale=(0.8, 1.2), ratio=(0.75, 1.3333), p=0.5),  # #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),  # clw note：注意这里顺序是 h, w;
+                #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),
                 #A.CoarseDropout()
                 #A.Cutout(num_holes=8, max_h_size=8, max_w_size=8, p=0.5),  # A.Cutout(num_holes=16, max_h_size=32, max_w_size=32, p=0.5)
                 #A.RandomRotate90(p=0.5)
