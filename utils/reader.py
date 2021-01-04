@@ -43,7 +43,7 @@ aug = A.Compose(albu_transforms)
 
 class WeatherDataset(Dataset):
     # define dataset
-    def __init__(self,label_list,transforms=None,mode="train"):
+    def __init__(self,label_list, transforms=None, mode="train"):
         super(WeatherDataset,self).__init__()
         self.label_list = label_list
         self.transforms = transforms
@@ -64,20 +64,18 @@ class WeatherDataset(Dataset):
     def __getitem__(self,index):
         if self.mode == "test":
             filename = self.imgs[index]
-            #img = Image.open(filename).convert('RGB')  # clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
             img = cv2.imread(filename)
             input_size = configs.input_size
             if isinstance(input_size, tuple):
                 img = cv2.resize(img, configs.input_size)
             else:
                 img = cv2.resize(img, (configs.input_size, configs.input_size))
-
             img_pil = Image.fromarray(cv2.cvtColor(img, cv2.COLOR_BGR2RGB) )  ## 转成pil格式，做transform提供的增强
             img = self.transforms(img_pil)
             return img, filename
-        elif self.mode == "val":
+
+        else:  # train or val, all need label
             filename, label = self.imgs[index]
-            #img = Image.open(filename).convert('RGB')  # clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
             img = cv2.imread(filename)
             input_size = configs.input_size
             if isinstance(input_size, tuple):
@@ -85,39 +83,24 @@ class WeatherDataset(Dataset):
             else:
                 img = cv2.resize(img, (configs.input_size, configs.input_size))
 
+            if self.mode == "train":
+                img = aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             img_pil = Image.fromarray(img)              ## 转成pil格式，做transform提供的增强
             img = self.transforms(img_pil)
             return img, label
-        else:
-            filename,label = self.imgs[index]
-            #img = Image.open(filename).convert('RGB')  # clw modify：因为前向推理要用cv2，无法复现transform.resize的结果（取值一个是0~255，一个是float64 0~1)
-            img = cv2.imread(filename)
-            input_size = configs.input_size
-
-            img_augmented = aug(image=img)['image']   # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
-            if isinstance(input_size, tuple):
-                img_augmented = cv2.resize(img_augmented, configs.input_size)
-            else:
-                img_augmented = cv2.resize(img_augmented, (configs.input_size, configs.input_size))
-
-            ## 转成pil格式，做transform提供的增强
-            img_augmented = cv2.cvtColor(img_augmented, cv2.COLOR_BGR2RGB)
-            img_pil = Image.fromarray(img_augmented)
-            ###############
-            img = self.transforms(img_pil)
-            return img,label
 
 
 # ====================================================
 # Dataset
 # ====================================================
 class TrainDataset(Dataset):
-    def __init__(self, df, transform=None):
+    def __init__(self, df, transform=None, mode="train"):
         self.df = df
         self.file_names = df['image_id'].values
         self.labels = df['label'].values
         self.transform = transform
+        self.mode = mode
 
     def __len__(self):
         return len(self.df)
@@ -135,16 +118,15 @@ class TrainDataset(Dataset):
         ### clw modify
         img = cv2.imread(file_path)
         input_size = configs.input_size
-        img_augmented = aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
         if isinstance(input_size, tuple):
-            img_augmented = cv2.resize(img_augmented, configs.input_size)
+            img = cv2.resize(img, configs.input_size)
         else:
-            img_augmented = cv2.resize(img_augmented, (configs.input_size, configs.input_size))
+            img = cv2.resize(img, (configs.input_size, configs.input_size))
 
-        ## 转成pil格式，做transform提供的增强
-        img_augmented = cv2.cvtColor(img_augmented, cv2.COLOR_BGR2RGB)
-        img_pil = Image.fromarray(img_augmented)
-        ###############
+        if self.mode == "train":
+            img = aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img_pil = Image.fromarray(img)  ## 转成pil格式，做transform提供的增强
         img = self.transform(img_pil)
         label = torch.tensor(self.labels[idx]).long()
         return img, label
