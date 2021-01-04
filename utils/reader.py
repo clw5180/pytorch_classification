@@ -27,7 +27,7 @@ albu_transforms =  [
                 A.OneOf([A.VerticalFlip(p=1), A.HorizontalFlip(p=1)], p=0.5),
                 A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),   # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
                 A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.5),
-                A.CoarseDropout(max_holes=512, p=0.3),
+                A.CoarseDropout(max_holes=32, p=0.3),
                 A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
 
 
