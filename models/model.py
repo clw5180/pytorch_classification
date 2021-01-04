@@ -92,27 +92,27 @@ def get_model():
         model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
         model.last_linear=nn.Linear(2048, configs.num_classes)
         model.avg_pool = nn.AdaptiveAvgPool2d(1)  # clw note: 在senet.py中，默认是self.avg_pool = nn.AvgPool2d(7, stride=1)，这里的7是根据imagenet输入224来的，所以要改一下，否则输出就不是 32,2048,1,1了
-        model.cuda()
+
     elif configs.model_name.startswith("se_resnext101_32x4d"):  # TODO: pretrainedmodels.se_resnext50_32x4d()
         model = pretrainedmodels.se_resnext101_32x4d(pretrained="imagenet")
         model.last_linear = nn.Linear(2048, configs.num_classes)
         model.avg_pool = nn.AdaptiveAvgPool2d(1)
-        model.cuda()
+
     elif configs.model_name.startswith("pnasnet"):  # TODO: pretrainedmodels.se_resnext50_32x4d()
         model = pretrainedmodels.pnasnet5large(pretrained="imagenet")
         model.last_linear=nn.Linear(4320, configs.num_classes)
         model.avg_pool = nn.AdaptiveAvgPool2d(1)  # clw note: 在senet.py中，默认是self.avg_pool = nn.AvgPool2d(7, stride=1)，这里的7是根据imagenet输入224来的，所以要改一下，否则输出就不是 32,2048,1,1了
-        model.cuda()
+
     elif configs.model_name.startswith("resnet18"):
         model = models.resnet18(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(512, configs.num_classes)
-        model.cuda()
+
     elif configs.model_name.startswith("resnet34"):
         model = models.resnet34(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(512, configs.num_classes)
-        model.cuda()
+
     elif configs.model_name.startswith("resnet50"):
         model = models.resnet50(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
@@ -120,15 +120,19 @@ def get_model():
 
         # model = timm.create_model("resnet50", pretrained=True)
         # model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
-        model.cuda()
+
     elif configs.model_name.startswith("efficientnet-b0"):
         model = timm.create_model('tf_efficientnet_b0_ns', pretrained=True)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-        model.cuda()
-    elif configs.model_name.startswith("efficientnet-b4"):
-        model = timm.create_model('tf_efficientnet_b4_ns', drop_path_rate=0.2, pretrained=True)  # drop_path_rate=0.4,
+
+    elif configs.model_name.startswith("efficientnet-b2"):
+        model = timm.create_model('tf_efficientnet_b2_ns', pretrained=True)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-        model.cuda()
+
+    elif configs.model_name.startswith("efficientnet-b4"):
+        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)  # drop_path_rate=0.2~0.5
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+
     # elif configs.model_name.startswith("efficientnet-b"):
     #     # efficientNet
     #     model_name = configs.model_name[:15]
@@ -140,7 +144,7 @@ def get_model():
     #                     nn.Dropout(0.5),  # TODO
     #                     nn.Linear(in_features, configs.num_classes),
     #                      )
-    #     model.cuda()
+
     elif configs.model_name == 'shufflenetv2_x0_5':  # clw modify
         model = models.shufflenet_v2_x0_5(pretrained=True)  # clw modify
         model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
@@ -152,7 +156,7 @@ def get_model():
         if hasattr(model.fc, 'bias') and model.fc.bias is not None:
             nn.init.constant_(model.fc.bias, bias)
         ####
-        model.cuda()
+
     elif configs.model_name == 'shufflenet_v2_x1_0':  # clw modify
         model = models.shufflenet_v2_x1_0(pretrained=False)  # clw modify
         #model = models.shufflenet_v2_x1_0(pretrained=True)  # clw modify
@@ -165,7 +169,7 @@ def get_model():
         if hasattr(model.fc, 'bias') and model.fc.bias is not None:
             nn.init.constant_(model.fc.bias, bias)
         ####
-        model.cuda()
+
     elif configs.model_name == 'shufflenetv2_x1_5':  # clw modify
         model = models.shufflenet_v2_x1_5(pretrained=False)  # clw modify
         model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
@@ -177,6 +181,6 @@ def get_model():
         if hasattr(model.fc, 'bias') and model.fc.bias is not None:
             nn.init.constant_(model.fc.bias, bias)
         ####
-        model.cuda()
 
+    model.cuda()
     return model

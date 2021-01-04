@@ -47,6 +47,13 @@ def get_optimizer(model):
         print("%s  optimizer will be add later"%configs.optim)
 
 def save_checkpoint(state, is_best):
+    filename = configs.checkpoints + os.sep + configs.model_name + '_' + time.strftime("%Y_%m_%d_%H_%M_%S", time_local) + "-checkpoint.pth.tar" # clw add time
+    torch.save(state, filename)
+    if is_best:
+        message = filename.replace("-checkpoint.pth.tar","-best_model.pth.tar")
+        shutil.copyfile(filename, message)
+
+def save_checkpoint_with_fold(state, is_best):
     fold = state['fold']
     filename = configs.checkpoints + os.sep + configs.model_name + '_' + time.strftime("%Y_%m_%d_%H_%M_%S", time_local) + "_fold" + str(fold) + "-checkpoint.pth.tar" # clw add time
     torch.save(state, filename)
@@ -84,6 +91,12 @@ def accuracy(output, target, topk=(1,)):
 
     _, pred = output.topk(maxk, 1, True, True)
     pred = pred.t()
+
+    ### clw modify: for mixup one-hot targets, choose the max as label, but is not accuracy enough    TODO
+    target_max_value, target_max_index = target.max(1)
+    target = target_max_index
+    #################
+
     correct = pred.eq(target.view(1, -1).expand_as(pred))
 
     res = []

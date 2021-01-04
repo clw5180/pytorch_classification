@@ -17,11 +17,11 @@ from PIL import ImageFile
 from config import configs
 from models.model import get_model
 from sklearn.model_selection import train_test_split
-from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learning_rate, save_checkpoint, get_optimizer
+from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learning_rate, save_checkpoint_with_fold, get_optimizer
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
-from utils.reader import TrainDataset, albu_transforms
+from utils.reader import TrainDataset, albu_transforms_train
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
@@ -75,7 +75,7 @@ def main():
     n_fold = 5
     logger = Logger(os.path.join(configs.log_dir, '%s_%s_%d_fold_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()), n_fold)), title=configs.model_name, resume=configs.resume)
     logger.info(str(configs))
-    logger.info(str(albu_transforms))
+    logger.info(str(albu_transforms_train))
 
 
     target_col = 'label'
@@ -90,16 +90,6 @@ def main():
     # print(folds.groupby(['fold', target_col]).size())  # 统计每个fold的各类别样本数量
 
     start_epoch = configs.start_epoch
-
-    transform_train = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])  # clw note: r g b
-    ])
-
-    transform_val = transforms.Compose([
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
 
     #for fold in range(n_fold):
     for fold in [0, 1, 2, 3, 4]:  # clw modify
@@ -116,10 +106,8 @@ def main():
         train_folds = folds.loc[trn_idx].reset_index(drop=True)
         valid_folds = folds.loc[val_idx].reset_index(drop=True)
 
-        train_dataset = TrainDataset(train_folds,
-                                     transform=transform_train)
-        valid_dataset = TrainDataset(valid_folds,
-                                     transform=transform_val)
+        train_dataset = TrainDataset(train_folds, mode="train")
+        valid_dataset = TrainDataset(valid_folds, mode="val")
 
         train_loader = torch.utils.data.DataLoader(train_dataset,
                                   batch_size=configs.bs,
@@ -180,6 +168,8 @@ def main():
         ################################################### clw modify: loss function
         if configs.loss_func == "LabelSmoothCELoss":
             criterion = LabelSmoothingLoss(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
+        if configs.loss_func == "LabelSmoothCELoss_clw":
+            criterion = LabelSmoothingLoss_clw(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
         elif configs.loss_func == "CELoss":
             criterion = nn.CrossEntropyLoss()
         elif configs.loss_func == "BCELoss":
@@ -223,7 +213,7 @@ def main():
             # save model
             is_best = val_acc > best_acc
             best_acc = max(val_acc, best_acc)
-            save_checkpoint({
+            save_checkpoint_with_fold({
                 'fold': fold,
                 'epoch': epoch + 1,
                 'state_dict': model.state_dict(),

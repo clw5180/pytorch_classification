@@ -38,21 +38,18 @@ class DefaultConfigs(object):
     submits = "./submits/"                # path to save submission files
 
     sampler = "RandomSampler"   # "RandomSampler"、"WeightedSampler"、"imbalancedSampler"（和WeightedSampler基本一样）
-
+    lr_scheduler = "cosine_change_per_batch" # lr scheduler method: "step", "cosine_change_per_epoch", "cosine_change_per_batch", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
+    epochs = 10
     optim = "adam"  # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     if optim == "adam":
-        epochs = 10
-        lr_scheduler = "cosine_change_per_epoch"  # lr scheduler method: "step", "cosine_per_epoch", "cosine_per_batch", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
-        lr = 1e-4  # sgd: 2e-2、1e-1   adam: 1e-4, 3e-4, 5e-4
+        lr = 3e-4  # sgd: 2e-2、1e-1   adam: 1e-4, 3e-4, 5e-4
     elif optim == "sgd":
-        epochs = 10
-        lr_scheduler = "cosine_change_per_epoch"
         lr = 2e-2
 
     bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     input_size = (512, 512)   # clw note：注意是 w, h   512、384、784、(800, 600)
-    model_name = "efficientnet-b4"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
-    loss_func = "LabelSmoothCELoss" #  "LabelSmoothCELoss"、"CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、
+    model_name = "efficientnet-b2"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
+    loss_func = "LabelSmoothCELoss_clw" #  "LabelSmoothCELoss"、 "LabelSmoothCELoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、
     label_smooth_epsilon = 0.2
     gpu_id = "0"           # default gpu id
     fp16 = True          # use float16 to train the model
@@ -69,7 +66,7 @@ class DefaultConfigs(object):
                 "sampler: " + str(self.sampler) + '\n' + \
                 "model_name: " + self.model_name + '\n' + \
                 "loss_func: " + self.loss_func + '\n' + \
-                ("label_smooth_epsilon: " + str(self.label_smooth_epsilon) + '\n' ) if self.loss_func == "LabelSmoothCELoss" else None + \
+                ("label_smooth_epsilon: " + str(self.label_smooth_epsilon) + '\n' ) if self.loss_func.startswith("LabelSmoothCELoss") else None + \
                 "fp16: " + ("True" if self.fp16 else "False")
 
 configs = DefaultConfigs()

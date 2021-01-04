@@ -1,4 +1,3 @@
-'''
 import random
 import time
 import warnings
@@ -22,7 +21,7 @@ from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learnin
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
-from utils.reader import WeatherDataset, albu_transforms
+from utils.reader import WeatherDataset, albu_transforms_train
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
@@ -32,8 +31,6 @@ from tqdm import tqdm
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
 tb_logger = SummaryWriter()  # clw modify
-
-
 
 # for train fp16
 if configs.fp16:
@@ -46,7 +43,6 @@ if configs.fp16:
     except ImportError:
         raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
-ImageFile.LOAD_TRUNCATED_IMAGES = True
 warnings.filterwarnings("ignore")
 os.environ['CUDA_VISIBLE_DEVICES'] = configs.gpu_id
 
@@ -72,36 +68,18 @@ makdir()
 
 
 def main():
+    logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name, resume=configs.resume)
+    logger.info(str(configs))
+    logger.info(str(albu_transforms_train))
+
     best_acc = 0  # best test accuracy
-    best_loss = 999  # lower loss
     start_epoch = configs.start_epoch
-
-    
-    transform_train = transforms.Compose([
-        #transforms.RandomResizedCrop(configs.input_size),  # clw delete
-        #transforms.Resize( (int(configs.input_size), int(configs.input_size)) ),  # clw modify
-        #######transforms.Resize((configs.input_size, configs.input_size) ),  # clw modify: 在外面用cv2实现
-
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225]) # clw note: r g b
-    ])
-    
-    transform_val = transforms.Compose([
-        #transforms.Resize(int(configs.input_size * 1.2)),
-        #########transforms.Resize((configs.input_size, configs.input_size)),  # clw modify: 在外面用cv2实现
-        #transforms.CenterCrop(configs.input_size),    # clw delete
-        transforms.ToTensor(),
-        transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
-    ])
-
-
-
 
     # Data loading code
     train_data_df = get_files(configs.dataset+"/train/",   "train")  # DataFrame: ( image_nums, 2 )
     val_data_df = get_files(configs.dataset+"/val/",   "val")
-    train_dataset = WeatherDataset(train_data_df,  transform_train, "train")
-    val_dataset = WeatherDataset(val_data_df,  transform_val, "val")
+    train_dataset = WeatherDataset(train_data_df, "train")
+    val_dataset = WeatherDataset(val_data_df, "val")
 
     if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
         train_data_list = np.array(train_data_df).tolist()
@@ -125,38 +103,43 @@ def main():
                                                    batch_size=configs.bs,
                                                    shuffle=True,
                                                    num_workers=configs.workers,
-                                                   pin_memory=True)
-    val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=configs.bs, shuffle=False,
-        num_workers=configs.workers, pin_memory=True
-    )
+                                                   pin_memory=True,
+                                                   drop_last=True)
+    val_loader = torch.utils.data.DataLoader(val_dataset,
+                                             batch_size=configs.bs,
+                                             shuffle=False,
+                                             num_workers=configs.workers,
+                                             pin_memory=True,
+                                             drop_last=False)
 
     # get model
     model = get_model()
     model.cuda()
 
+    # set lr scheduler method
     optimizer = get_optimizer(model)
     # set lr scheduler method
     if configs.lr_scheduler == "step":
-        #scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
-                                                                                                                #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9], gamma=0.1)   # clw note: 学习率每step_size变为之前的0.1
-    elif configs.lr_scheduler == 'cosine':
-        #scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
-        #scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)
-        # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer,
-        #                                     T_max=configs.epochs * len(train_loader),
-        #                                     T_warmup= 3 * len(train_loader),
-        #                                     eta_min=1e-5)
-
-        #scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=500, eta_min=1e-7)
-        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=0, eta_min=1e-6)  # clw note: 默认cosine是按batch来更新
-
+        # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
+        #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9],
+                                                         gamma=0.1)  # clw note: 学习率每step_size变为之前的0.1
+    elif configs.lr_scheduler == "cosine_change_per_batch":
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
+        # scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)
+        # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer, T_max=configs.epochs * len(train_loader), T_warmup= 3 * len(train_loader), eta_min=1e-5)
+        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=len(train_loader),
+                                    eta_min=1e-6)  # clw note: 默认cosine是按batch来更新 ; warmup_iters=500, eta_min=1e-7
+    elif configs.lr_scheduler == "cosine_change_per_epoch":
+        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1,
+                                                                         eta_min=1e-6)  # clw note: usually 1e-6
     elif configs.lr_scheduler == "on_loss":
-        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
+        # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4,
+                                                               verbose=False)
     elif configs.lr_scheduler == "on_acc":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5, verbose=False)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5,
+                                                               verbose=False)
     elif configs.lr_scheduler == "adjust":
         pass
     else:
@@ -165,10 +148,11 @@ def main():
     if configs.fp16:
         model, optimizer = amp.initialize(model, optimizer,
                                           opt_level=configs.opt_level,
-                                          keep_batchnorm_fp32= None if configs.opt_level == "O1" else configs.keep_batchnorm_fp32
+                                          keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
+                                          # verbosity=0  # 不打印amp相关的日志
                                           )
     if configs.resume:
-            # Load checkpoint.
+        # Load checkpoint.
         print('==> Resuming from checkpoint..')
         assert os.path.isfile(configs.resume), 'Error: no checkpoint directory found!'
         configs.checkpoint = os.path.dirname(configs.resume)
@@ -177,19 +161,18 @@ def main():
         start_epoch = checkpoint['epoch']
         model.module.load_state_dict(checkpoint['state_dict'])
         optimizer.load_state_dict(checkpoint['optimizer'])
-        logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name, resume=True) # clw modify
     else:
-        logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name)
-        logger.info(str(configs))
-        logger.info(str(albu_transforms))
         logger.set_names(['Learning Rate', 'Train Loss', 'Train Acc.', 'Valid Acc.'])
-
 
     ################################################### clw modify: loss function
     if configs.loss_func == "LabelSmoothCELoss":
-        criterion = LabelSmoothingLoss(0.05, configs.num_classes)  # now better than 0.05 and 0.1
+        criterion = LabelSmoothingLoss(configs.label_smooth_epsilon,
+                                       configs.num_classes)  # now better than 0.05 and 0.1  TODO
+    if configs.loss_func == "LabelSmoothCELoss_clw":
+        criterion = LabelSmoothingLoss_clw(configs.label_smooth_epsilon,
+                                           configs.num_classes)  # now better than 0.05 and 0.1  TODO
     elif configs.loss_func == "CELoss":
-        criterion = nn.CrossEntropyLoss()  # TODO: cuda() ??
+        criterion = nn.CrossEntropyLoss()
     elif configs.loss_func == "BCELoss":
         criterion = nn.BCEWithLogitsLoss()
     elif configs.loss_func == "FocalLoss":
@@ -209,7 +192,7 @@ def main():
             adjust_learning_rate(optimizer,epoch)
 
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
-        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
+        train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine_change_per_batch" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
         val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
         tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
 
@@ -219,8 +202,9 @@ def main():
         elif configs.lr_scheduler == "on_loss":
             scheduler.step(val_loss)
         elif configs.lr_scheduler == "step":
-            scheduler.step(epoch)
-
+            scheduler.step()
+        elif configs.lr_scheduler == "cosine_change_per_epoch":
+            scheduler.step()
 
         # append logger file
         lr_current = get_lr(optimizer)
@@ -231,7 +215,6 @@ def main():
         is_best = val_acc > best_acc
         best_acc = max(val_acc, best_acc)
         save_checkpoint({
-            #'fold': 0,
             'epoch': epoch + 1,
             'state_dict': model.state_dict(),
             'train_acc': train_acc,
@@ -313,9 +296,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
             loss.backward()
 
         # clip gradient
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)  # TODO
         optimizer.step()
-        if configs.lr_scheduler == "cosine":  # clw modify
+        if scheduler is not None:  # clw modify
             scheduler.step()
 
         # measure elapsed time
@@ -409,4 +392,3 @@ def validate(val_loader, model, criterion, epoch):
 
 if __name__ == '__main__':
     main()
-'''
