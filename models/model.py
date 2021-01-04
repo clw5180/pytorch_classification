@@ -126,7 +126,7 @@ def get_model():
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
         model.cuda()
     elif configs.model_name.startswith("efficientnet-b4"):
-        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)
+        model = timm.create_model('tf_efficientnet_b4_ns', drop_path_rate=0.2, pretrained=True)  # drop_path_rate=0.4,
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
         model.cuda()
     # elif configs.model_name.startswith("efficientnet-b"):
