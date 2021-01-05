@@ -46,7 +46,7 @@ class DefaultConfigs(object):
     elif optim == "sgd":
         lr = 2e-2
 
-    bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
+    bs = 128         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     input_size = (512, 512)   # clw note：注意是 w, h   512、384、784、(800, 600)
     model_name = "efficientnet-b3"  # "resnet18", "resnet34", "resnet50"、"se_resnext50_32x4d"、"resnext50_32x4d"、"shufflenet_v2_x1_0"、"shufflenetv2_x0.5"、"efficientnet-b4"、“efficientnet-l2”、
     loss_func = "LabelSmoothCELoss_clw" #  "LabelSmoothCELoss"、 "LabelSmoothCELoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、

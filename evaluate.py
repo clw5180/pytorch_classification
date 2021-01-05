@@ -15,7 +15,7 @@ import matplotlib.pyplot as plt
 import pretrainedmodels
 import torch.nn as nn
 import timm
-
+from torch.utils.data.sampler import *
 
 
 # 绘制混淆矩阵  参考：https://www.jianshu.com/p/cd59aed787cf?open_source=weibo_search
@@ -31,7 +31,8 @@ def plot_confusion_matrix(cm, classes, title=None, cmap=plt.cm.Reds):  # plt.cm.
     # 按行进行归一化
     cm = cm.astype('float') / cm.sum(axis=1)[:, np.newaxis]
 
-    # print("Normalized confusion matrix")
+    print("Normalized confusion matrix")
+    print(cm)
     # str_cm = cm.astype(np.str).tolist()
     # for row in str_cm:
     #     print('\t'.join(row))
@@ -85,7 +86,7 @@ def validate_and_analysis(val_loader, model):
     # switch to evaluate mode
     model.eval()
 
-    predict_label_matrix = np.zeros((configs.num_classes, configs.num_classes))  # clw note: 创建混淆矩阵，用于统计比如predict类别1但是预测成了类别4;
+    label_predict_matrix = np.zeros((configs.num_classes, configs.num_classes))  # clw note: 创建混淆矩阵，用于统计比如predict类别1但是预测成了类别4;
     batch_nums = len(val_loader)  # clw add
     end = time.time()
     bar = Bar('Validating: ', max=len(val_loader))
@@ -102,7 +103,7 @@ def validate_and_analysis(val_loader, model):
             predict_class_ids = torch.argmax(outputs.data, dim=1).cpu().numpy()
             true_label_class_ids = torch.argmax(targets.data, dim=1).cpu().numpy()
             for i in range( inputs.shape[0] ):
-                predict_label_matrix[ predict_class_ids[i] ][ true_label_class_ids[i] ] += 1
+                label_predict_matrix[ true_label_class_ids[i] ][ predict_class_ids[i] ] += 1
 
             # measure accuracy and record loss
             #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
@@ -128,7 +129,7 @@ def validate_and_analysis(val_loader, model):
 
     bar.finish()
     #return (losses.avg, top1.avg, top5.avg)
-    return (predict_label_matrix, top1.avg, 1)
+    return (label_predict_matrix, top1.avg, 1)
 
 if __name__ == "__main__":
     model_root_path = '/home/user/pytorch_classification/checkpoints'
@@ -137,7 +138,8 @@ if __name__ == "__main__":
     #model_file_name = 'resnet50_2020_12_31_20_29_11-checkpoint.pth.tar'
     #model_file_name = 'se_resnext50_32x4d_2021_01_01_20_23_36-checkpoint.pth.tar'
     #model_file_name = 'efficientnet-b4_2021_01_05_09_07_24-checkpoint.pth.tar'
-    model_file_name = 'efficientnet-b3_2021_01_05_11_23_00-checkpoint.pth.tar'  # CV:89.6310
+    #model_file_name = 'efficientnet-b3_2021_01_05_11_23_00-checkpoint.pth.tar'  # CV:89.6310
+    model_file_name = 'efficientnet-b3_2021_01_05_15_43_49-checkpoint.pth.tar'  # CV:89.6310
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
     if 'se_resnext50' in model_file_name:
@@ -175,13 +177,13 @@ if __name__ == "__main__":
     val_files = get_files(configs.dataset + "/val/", "val")
     val_dataset = WeatherDataset(val_files, mode="val")
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=configs.bs, shuffle=False,
+        val_dataset, batch_size=configs.bs, shuffle=False, sampler=SequentialSampler(val_dataset),
         num_workers=configs.workers, pin_memory=True
     )
 
     # 绘制混淆矩阵并打印acc
-    predict_label_matrix, val_acc, _ = validate_and_analysis(val_loader, model)
+    label_predict_matrix, val_acc, _ = validate_and_analysis(val_loader, model)
     print('Test Acc: %.6f' % val_acc)
-    plot_confusion_matrix(predict_label_matrix, [i for i in range(configs.num_classes)])
+    plot_confusion_matrix(label_predict_matrix, [i for i in range(configs.num_classes)])
 
 

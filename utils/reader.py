@@ -28,12 +28,11 @@ albu_transforms_train =  [
 
                 ### new try
                 A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR,
-                                   border_mode=cv2.BORDER_CONSTANT, p=0.5),
+                                   border_mode=cv2.BORDER_REFLECT101, p=0.5),
                 # border_mode=cv2.BORDER_REPLICATE  BORDER_REFLECT101 BORDER_CONSTANT
                 A.VerticalFlip(p=0.5),
                 A.HorizontalFlip(p=0.5),
                 A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),
-                # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
                 A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.3),
                 A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
                 A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
@@ -141,7 +140,7 @@ class WeatherDataset(Dataset):
         Args:
             img: img to mixup
             label: label to mixup
-            index: mixup with other imgs in dataset, exclude itself( index )
+            index: cutmix with other imgs in dataset, exclude itself( index )
         '''
         img_h, img_w = img.shape[:2]
 
@@ -167,15 +166,6 @@ class WeatherDataset(Dataset):
         img_new = train_aug(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
 
         return img_new, label_new
-
-
-
-
-
-
-
-
-
 
 
 
