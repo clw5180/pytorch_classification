@@ -63,7 +63,7 @@ class CassavaDataset(Dataset):
     def __getitem__(self, index):
         img = cv2.imread(img_path + '/%s' % image_id[index])
         img = cv2.resize(img, input_size)
-        img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
+        img = img[:, :, ::-1]  # clw note: faster than   img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
         img = val_aug(image=img)['image']
 
         return img
