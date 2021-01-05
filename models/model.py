@@ -124,11 +124,12 @@ def get_model():
     elif configs.model_name.startswith("efficientnet-b0"):
         model = timm.create_model('tf_efficientnet_b0_ns', pretrained=True)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-
     elif configs.model_name.startswith("efficientnet-b2"):
         model = timm.create_model('tf_efficientnet_b2_ns', pretrained=True)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-
+    elif configs.model_name.startswith("efficientnet-b3"):
+        model = timm.create_model('tf_efficientnet_b3_ns', pretrained=True)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif configs.model_name.startswith("efficientnet-b4"):
         model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)  # drop_path_rate=0.2~0.5
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
@@ -182,5 +183,4 @@ def get_model():
             nn.init.constant_(model.fc.bias, bias)
         ####
 
-    model.cuda()
     return model

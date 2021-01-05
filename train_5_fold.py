@@ -273,7 +273,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
             loss.backward()
 
         # clip gradient
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)  # clw note: max_norm top方案1000, or 10, 20；TODO
+        #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=5.0, norm_type=2)  # clw note: max_norm top方案1000, or 10, 20；TODO
 
         optimizer.step()
         if scheduler is not None:

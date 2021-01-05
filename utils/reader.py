@@ -8,6 +8,7 @@ import os
 import torch
 import random
 import numpy as np
+from utils.utils import rand_bbox
 
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
@@ -26,13 +27,17 @@ albu_transforms_train =  [
                 # A.RandomResizedCrop(600, 800, scale=(0.6, 1.0), ratio=(0.6, 1.666666), p=0.5)
 
                 ### new try
-                A.ShiftScaleRotate(shift_limit=0.2, scale_limit=0.2, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=cv2.BORDER_REFLECT101, p=0.8),  # border_mode=cv2.BORDER_REPLICATE
-                A.OneOf([A.VerticalFlip(p=1), A.HorizontalFlip(p=1)], p=0.5),
-                A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),   # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
-                A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.5),
-                A.CoarseDropout(max_holes=32, p=0.3),
+                A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR,
+                                   border_mode=cv2.BORDER_CONSTANT, p=0.5),
+                # border_mode=cv2.BORDER_REPLICATE  BORDER_REFLECT101 BORDER_CONSTANT
+                A.VerticalFlip(p=0.5),
+                A.HorizontalFlip(p=0.5),
+                A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),
+                # #A.RandomBrightnessContrast( brightness_limit=0.1, contrast_limit=0.1, p=0.5),
+                A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.3),
+                A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
                 A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
-                A.Normalize(),
+                A.Normalize(),  # A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
                 ToTensorV2()
 
                 #A.RandomResizedCrop(600, 800, scale=(0.8, 1.2), ratio=(0.75, 1.3333), p=0.5),  # #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),  # clw note：注意这里顺序是 h, w;
@@ -44,7 +49,7 @@ albu_transforms_train =  [
             ]
 
 albu_transforms_val = [
-                A.Normalize(),
+                A.Normalize(), #A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
                 ToTensorV2()
             ]
 train_aug = A.Compose(albu_transforms_train)
@@ -70,7 +75,7 @@ class WeatherDataset(Dataset):
     def __len__(self):
         return len(self.imgs)
 
-    def __getitem__(self,index):
+    def __getitem__(self, index):
         if self.mode == "test":  # no label
             filename = self.imgs[index]
             img = cv2.imread(filename)
@@ -86,39 +91,91 @@ class WeatherDataset(Dataset):
             input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
             img = cv2.resize(img, input_size)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
-
             label = torch.tensor(label).long()
+
             if self.mode == "train":
+                do_mixup_prob = 0
+                do_cutmix_prob = 0.5
 
-                ### mixup
-                if random.random() < 0.5:
-                    mixup_ratio = np.random.beta(1.5, 1.5)
-
-                    img = train_aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
-
-                    r_idx = random.choice(np.delete(np.arange(len(self.imgs)), index))
-                    r_filename, r_label = self.imgs[r_idx]
-                    r_img = cv2.imread(os.path.join(configs.dataset+"/train/", r_filename))
-                    r_img = cv2.resize(r_img, input_size)
-                    r_img = cv2.cvtColor(r_img, cv2.COLOR_BGR2RGB)
-                    r_img = train_aug(image=r_img)['image']
-
-                    img = img * mixup_ratio + r_img * (1 - mixup_ratio)
-                    ## cv2.imwrite(os.path.join("/home/user", self.file_names[idx] + '_' + self.file_names[r_idx]), img)
-
-                    ### one-hot
-                    label_one_hot = torch.zeros(configs.num_classes).scatter_(0, label, 1)
-                    r_label = torch.tensor(r_label).long()
-                    r_label_one_hot = torch.zeros(configs.num_classes).scatter_(0, r_label, 1)
-                    label = label_one_hot * mixup_ratio + r_label_one_hot * (1 - mixup_ratio)
+                if random.random() < do_mixup_prob:
+                    img, label = self.do_mixup(img, label, index)
+                elif random.random() < do_cutmix_prob:
+                    img, label = self.do_cutmix(img, label, index)
                 else:
                     img = train_aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
                     label = torch.zeros(configs.num_classes).scatter_(0, label, 1)
-            else:
+
+            elif self.mode == "val":
                 img = val_aug(image=img)['image']
                 label = torch.zeros(configs.num_classes).scatter_(0, label, 1)
 
             return img, label
+
+    def do_mixup(self, img, label, index):
+        '''
+        Args:
+            img: img to mixup
+            label: label to mixup
+            index: mixup with other imgs in dataset, exclude itself( index )
+        '''
+        mixup_ratio = np.random.beta(1.5, 1.5)
+
+        img = train_aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+
+        r_idx = random.choice(np.delete(np.arange(len(self.imgs)), index))
+        r_filename, r_label = self.imgs[r_idx]
+        r_img = cv2.imread(os.path.join(configs.dataset + "/train/", r_filename))
+        r_img = cv2.resize(r_img, input_size)
+        r_img = cv2.cvtColor(r_img, cv2.COLOR_BGR2RGB)
+        r_img = train_aug(image=r_img)['image']
+        img_new = img * mixup_ratio + r_img * (1 - mixup_ratio)
+        label_one_hot = torch.zeros(configs.num_classes).scatter_(0, label, 1)
+        r_label = torch.tensor(r_label).long()
+        r_label_one_hot = torch.zeros(configs.num_classes).scatter_(0, r_label, 1)
+        label_new = label_one_hot * mixup_ratio + r_label_one_hot * (1 - mixup_ratio)
+        return img_new, label_new
+
+
+    def do_cutmix(self, img, label, index):
+        '''
+        Args:
+            img: img to mixup
+            label: label to mixup
+            index: mixup with other imgs in dataset, exclude itself( index )
+        '''
+        img_h, img_w = img.shape[:2]
+
+        r_idx = random.choice(np.delete(np.arange(len(self.imgs)), index))
+        r_filename, r_label = self.imgs[r_idx]
+        r_img = cv2.imread(os.path.join(configs.dataset + "/train/", r_filename))
+        r_img = cv2.resize(r_img, input_size)
+        r_img = cv2.cvtColor(r_img, cv2.COLOR_BGR2RGB)
+
+        lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
+        #lam = 0.9
+        bbx1, bby1, bbx2, bby2 = rand_bbox(img_w, img_h, lam)
+        img_new = img.copy()
+        img_new[bby1:bby2, bbx1:bbx2, :] = r_img[bby1:bby2, bbx1:bbx2, :]
+
+
+        lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (img_h * img_w))
+        label_one_hot = torch.zeros(configs.num_classes).scatter_(0, label, 1)
+        r_label = torch.tensor(r_label).long()
+        r_label_one_hot = torch.zeros(configs.num_classes).scatter_(0, r_label, 1)
+        label_new = label_one_hot * lam + r_label_one_hot * (1 - lam)
+
+        img_new = train_aug(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+
+        return img_new, label_new
+
+
+
+
+
+
+
+
+
 
 
 

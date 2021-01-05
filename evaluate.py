@@ -16,6 +16,8 @@ import pretrainedmodels
 import torch.nn as nn
 import timm
 
+
+
 # 绘制混淆矩阵  参考：https://www.jianshu.com/p/cd59aed787cf?open_source=weibo_search
 def plot_confusion_matrix(cm, classes, title=None, cmap=plt.cm.Reds):  # plt.cm.Blues
     '''
@@ -91,8 +93,7 @@ def validate_and_analysis(val_loader, model):
         for batch_idx, (inputs, targets) in enumerate(tqdm(val_loader)):
             # measure data loading time
             data_time.update(time.time() - end)
-            inputs, targets = inputs.cuda(), targets.cuda()
-            #inputs = inputs.half()
+            inputs, targets = inputs.cuda(), targets.cuda()  # .half()
 
             # compute output
             #outputs = model(inputs)
@@ -135,7 +136,8 @@ if __name__ == "__main__":
     #model_file_name = 'resnet50_2020_12_31_20_46_33-checkpoint.pth.tar'
     #model_file_name = 'resnet50_2020_12_31_20_29_11-checkpoint.pth.tar'
     #model_file_name = 'se_resnext50_32x4d_2021_01_01_20_23_36-checkpoint.pth.tar'
-    model_file_name = 'efficientnet-b0_2021_01_04_20_34_44-checkpoint.pth.tar'
+    #model_file_name = 'efficientnet-b4_2021_01_05_09_07_24-checkpoint.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_01_05_11_23_00-checkpoint.pth.tar'  # CV:89.6310
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
     if 'se_resnext50' in model_file_name:
@@ -145,14 +147,29 @@ if __name__ == "__main__":
     elif "efficientnet-b0" in model_file_name:
         model = timm.create_model('tf_efficientnet_b0_ns', pretrained=False)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b2" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b2_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b3" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b3_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif "efficientnet-b4" in model_file_name:
         model = timm.create_model('tf_efficientnet_b4_ns', pretrained=False)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     else:
         model = models.resnet50(pretrained=False, num_classes=configs.num_classes)  # clw note: fc.weight: (num_class, 2048)
+
+    model.cuda()  # .half()
+
+    # from apex import amp
+    # from utils.misc import get_optimizer
+    # optimizer = get_optimizer(model)
+    # model, _ = amp.initialize(model, optimizer,
+    #                                   opt_level=configs.opt_level,
+    #                                   keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
+    #                                   # verbosity=0  # 不打印amp相关的日志
+    #                                   )
     model.load_state_dict(my_state_dict)
-    #model.half()
-    model.cuda()
 
 
     val_files = get_files(configs.dataset + "/val/", "val")
@@ -164,7 +181,7 @@ if __name__ == "__main__":
 
     # 绘制混淆矩阵并打印acc
     predict_label_matrix, val_acc, _ = validate_and_analysis(val_loader, model)
-    print('Test Acc: %.4f' % val_acc)
+    print('Test Acc: %.6f' % val_acc)
     plot_confusion_matrix(predict_label_matrix, [i for i in range(configs.num_classes)])
 
 
