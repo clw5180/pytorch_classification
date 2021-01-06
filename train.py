@@ -76,10 +76,20 @@ def main():
     best_acc = 0  # best test accuracy
     start_epoch = configs.start_epoch
 
+
     # Data loading code
     train_data_df = get_files(configs.dataset+"/train/",   "train")  # DataFrame: ( image_nums, 2 )
-    val_data_df = get_files(configs.dataset+"/val/",   "val")
     train_dataset = WeatherDataset(train_data_df, "train")
+    if train_dataset.do_cutmix_prob > 0:
+        logger.info('do cutmix in __get_item()__ !')
+    if train_dataset.do_mixup_prob > 0:
+        logger.info('do mixup in __get_item()__ !')
+    do_cutmix_prob = 0
+    if do_cutmix_prob > 0:
+        logger.info('do cutmix in a batch !')
+    assert (train_dataset.do_cutmix_prob == 0 or do_cutmix_prob == 0)  # can't >0 both
+
+    val_data_df = get_files(configs.dataset+"/val/",   "val")
     val_dataset = WeatherDataset(val_data_df, "val")
 
     if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
@@ -253,7 +263,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
 
         ### clw added: cutmix, same as official -  https://github.com/clovaai/CutMix-PyTorch
-        do_cutmix_prob = 0.5
         r = np.random.rand(1)
         if r < do_cutmix_prob:
             # generate mixed sample

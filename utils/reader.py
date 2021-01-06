@@ -71,6 +71,9 @@ class WeatherDataset(Dataset):
                 imgs.append((row["filename"],row["label"]))
             self.imgs = imgs
 
+            self.do_mixup_prob = 0
+            self.do_cutmix_prob = 0.5
+
     def __len__(self):
         return len(self.imgs)
 
@@ -93,12 +96,9 @@ class WeatherDataset(Dataset):
             label = torch.tensor(label).long()
 
             if self.mode == "train":
-                do_mixup_prob = 0
-                do_cutmix_prob = 0
-
-                if random.random() < do_mixup_prob:
+                if random.random() < self.do_mixup_prob:
                     img, label = self.do_mixup(img, label, index)
-                elif random.random() < do_cutmix_prob:
+                elif random.random() < self.do_cutmix_prob:
                     img, label = self.do_cutmix(img, label, index)
                 else:
                     img = train_aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
