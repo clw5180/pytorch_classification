@@ -34,7 +34,7 @@ albu_transforms_train =  [
                 A.HorizontalFlip(p=0.5),
                 A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),
                 A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.3),
-                A.CoarseDropout(max_holes=8, max_height=32, max_width=32, min_holes=4, p=0.5),
+                A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
                 A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
                 A.Normalize(),  # A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
                 ToTensorV2()
@@ -94,7 +94,7 @@ class WeatherDataset(Dataset):
 
             if self.mode == "train":
                 do_mixup_prob = 0
-                do_cutmix_prob = 0.5
+                do_cutmix_prob = 0
 
                 if random.random() < do_mixup_prob:
                     img, label = self.do_mixup(img, label, index)

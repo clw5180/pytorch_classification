@@ -25,7 +25,10 @@ class LabelSmoothingLoss(nn.Module):
 
         log_output = F.log_softmax(output, dim=1)
         model_prob = self.one_hot.repeat(target.size(0), 1).cuda()
-        model_prob.scatter_(1, target.unsqueeze(1), self.confidence)
+        class_idxs = torch.argmax(target, dim=1)                           # if target = [[0 1 0 0 0], [0 0 0 1 0], ...]
+        model_prob.scatter_(1, class_idxs.unsqueeze(1), self.confidence)
+        #model_prob.scatter_(1, target.unsqueeze(1), self.confidence)      # if target = [1, 3, 4, 2, 0.... 0]
+
         if self.ignore_index >= 0:
             model_prob.masked_fill_((target == self.ignore_index).unsqueeze(1), 0)
         # print("model_prob:{}".format(model_prob))

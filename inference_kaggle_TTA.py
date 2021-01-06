@@ -5,7 +5,6 @@ import os
 import cv2
 from tqdm import tqdm
 import pandas as pd
-import timm
 import torch.nn as nn
 import numpy as np
 import psutil
@@ -25,9 +24,9 @@ print('gpu:', str(torch.cuda.get_device_properties(0))[22:-1])
 print('')
 
 if DEBUG:
-    img_path = "/home/user/dataset/kaggle2020_leaf/val/" + '1'
+    img_path = "/home/user/dataset/kaggle2020_leaf/val/" + '3'
     checkpoint0 = [
-        "/home/user/pytorch_classification/checkpoints/efficientnet-b3_2021_01_05_15_43_49-checkpoint.pth.tar"
+        "/home/user/pytorch_classification/checkpoints/efficientnet-b3_2021_01_06_09_42_16-best_model.pth.tar"
     ]
     checkpoint1 = []
 else:
@@ -37,11 +36,11 @@ else:
     sys.path.append('../input/pytorchimagemodels')
     img_path = "/kaggle/input/cassava-leaf-disease-classification/test_images"
     checkpoint0 = [
-        "../input/20210105-effb3-modify-normalize/efficientnet-b3_2021_01_05_15_43_49-checkpoint.pth.tar"  # clw note: need modify
+        "../input/effb3cutmix/efficientnet-b3_2021_01_05_21_21_49-best_model.pth.tar"  # clw note: need modify
     ]
     checkpoint1 = []
 
-
+import timm
 
 input_size = (512, 512)
 image_id = list(os.listdir(img_path))
@@ -131,7 +130,7 @@ if __name__ == '__main__':
                 p.append(aaa)
 
                 # tta ----
-                if 0:
+                if 1:
                     logit = net(torch.flip(image, dims=(2,)).contiguous())
                     p.append(F.softmax(logit, -1))
 
@@ -155,15 +154,11 @@ if __name__ == '__main__':
     # submission,写csv
     df_submit = pd.DataFrame({'image_id': image_id, 'label': predict})
     print('df_submit', df_submit.shape)
-    print(df_submit)
 
 
     df_submit.to_csv('submission.csv', index=False)
-
     print(df_submit.head())
-    print(predict)
 
     if DEBUG:
         true_label = int(img_path[-1])
         print('acc: ', sum(predict == true_label) / len(predict)  )
-

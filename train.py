@@ -25,6 +25,7 @@ from utils.reader import WeatherDataset, albu_transforms_train
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
+from utils.utils import rand_bbox
 
 ######## clw modify
 from tqdm import tqdm
@@ -122,7 +123,7 @@ def main():
     if configs.lr_scheduler == "step":
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
         #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[3, 6, 9],
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 14],
                                                          gamma=0.1)  # clw note: 学习率每step_size变为之前的0.1
     elif configs.lr_scheduler == "cosine_change_per_batch":
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
@@ -165,10 +166,9 @@ def main():
         logger.set_names(['Learning Rate', 'Train Loss', 'Train Acc.', 'Valid Acc.'])
 
     ################################################### clw modify: loss function
-    if configs.loss_func == "LabelSmoothCELoss":
-        criterion = LabelSmoothingLoss(configs.label_smooth_epsilon,
-                                       configs.num_classes)  # now better than 0.05 and 0.1  TODO
-    if configs.loss_func == "LabelSmoothCELoss_clw":
+    if configs.loss_func == "LabelSmoothingLoss":
+        criterion = LabelSmoothingLoss(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
+    elif configs.loss_func == "LabelSmoothingLoss_clw":
         criterion = LabelSmoothingLoss_clw(configs.label_smooth_epsilon,
                                            configs.num_classes)  # now better than 0.05 and 0.1  TODO
     elif configs.loss_func == "CELoss":
@@ -248,18 +248,32 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         # measure data loading time
         data_time.update(time.time() - end)
         inputs, targets = inputs.cuda(), targets.cuda()
-        #inputs, targets = torch.autograd.Variable(inputs), torch.autograd.Variable(targets)  # clw delete
-
         # compute output
         # feature_1:(bs, 256, 1/4, 1/4)  feature_2:(bs, 512, 1/8, 1/8)    feature_3: (bs, 1024, 1/16, 1/16)   feature_3: (bs, 2048, 1/32, 1/32)
         #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
-        outputs = model(inputs)
-        if configs.loss_func == "BCELoss":
-            targets_one_hot = torch.zeros(len(targets), configs.num_classes).cuda()  # clw note：这里不能写configs.bs，因为最后一个batch可能不是完整的
-            targets_one_hot.scatter_(1, targets.unsqueeze(1), 1)  # one hot
-            loss = criterion(outputs, targets_one_hot)
+
+        ### clw added: cutmix, same as official -  https://github.com/clovaai/CutMix-PyTorch
+        do_cutmix_prob = 0.5
+        r = np.random.rand(1)
+        if r < do_cutmix_prob:
+            # generate mixed sample
+            lam = np.random.beta(1.0, 1.0)
+            rand_index = torch.randperm(inputs.size()[0]).cuda()
+            target_a = targets
+            target_b = targets[rand_index]
+            bbx1, bby1, bbx2, bby2 = rand_bbox(inputs.size(), lam)
+            inputs[:, :, bbx1:bbx2, bby1:bby2] = inputs[rand_index, :, bbx1:bbx2, bby1:bby2]
+            # adjust lambda to exactly match pixel ratio
+            lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inputs.size()[-1] * inputs.size()[-2]))
+            # compute output
+            outputs = model(inputs)
+            loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
         else:
+            # compute output
+            outputs = model(inputs)
             loss = criterion(outputs, targets)
+
+
 
         ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx

@@ -77,6 +77,7 @@ def plot_confusion_matrix(cm, classes, title=None, cmap=plt.cm.Reds):  # plt.cm.
     #plt.savefig('cm.jpg', dpi=300)
     plt.show()
 
+
 def validate_and_analysis(val_loader, model):
     batch_time = AverageMeter()
     data_time = AverageMeter()
@@ -131,15 +132,47 @@ def validate_and_analysis(val_loader, model):
     #return (losses.avg, top1.avg, top5.avg)
     return (label_predict_matrix, top1.avg, 1)
 
+
 if __name__ == "__main__":
     model_root_path = '/home/user/pytorch_classification/checkpoints'
     #model_file_name = 'resnet50_2021_01_01_10_22_18-checkpoint.pth.tar'
     #model_file_name = 'resnet50_2020_12_31_20_46_33-checkpoint.pth.tar'
     #model_file_name = 'resnet50_2020_12_31_20_29_11-checkpoint.pth.tar'
     #model_file_name = 'se_resnext50_32x4d_2021_01_01_20_23_36-checkpoint.pth.tar'
-    #model_file_name = 'efficientnet-b4_2021_01_05_09_07_24-checkpoint.pth.tar'
-    #model_file_name = 'efficientnet-b3_2021_01_05_11_23_00-checkpoint.pth.tar'  # CV:89.6310
-    model_file_name = 'efficientnet-b3_2021_01_05_15_43_49-checkpoint.pth.tar'  # CV:89.6310
+
+    '''
+    model_file_name = 'efficientnet-b3_2021_01_05_21_21_49-best_model.pth.tar'  # 89.327417  cutmix reflect101
+        [[0.67889908 0.05045872 0.02293578 0.03211009 0.21559633]              # but again 89.3046
+        [0.0456621  0.82876712 0.02054795 0.043379   0.06164384]
+        [0.01464435 0.02301255 0.77196653 0.12761506 0.06276151]
+        [0.0018997  0.00379939 0.00987842 0.97758359 0.00683891]
+        [0.08333333 0.05620155 0.04069767 0.09883721 0.72093023]]
+
+   model_file_name = 'efficientnet-b3_2021_01_05_19_22_28-best_model.pth.tar'  # 89.280710    cutmix  
+        [[0.60550459 0.05504587 0.02752294 0.02752294 0.28440367]
+         [0.043379   0.81506849 0.02968037 0.03652968 0.07534247]
+         [0.0209205  0.01882845 0.77196653 0.10669456 0.08158996]
+         [0.0018997  0.00265957 0.01253799 0.97606383 0.00683891]
+         [0.0755814  0.03875969 0.04069767 0.07751938 0.76744186]]
+         
+   model_file_name = 'efficientnet-b3_2021_01_05_15_43_49-best_model.pth.tar'  # 88.953760, but online:0.8946??      
+        [[0.71100917 0.02293578 0.01834862 0.01834862 0.2293578 ]       .half:  88.930406  apex same...
+         [0.04794521 0.74885845 0.03881279 0.04109589 0.12328767]
+         [0.01882845 0.01046025 0.79916318 0.10460251 0.06694561]
+         [0.00455927 0.00151976 0.01785714 0.96808511 0.00797872]
+         [0.10077519 0.02325581 0.06007752 0.04844961 0.76744186]]
+         
+    model_file_name = 'efficientnet-b3_2021_01_05_13_31_01-best_model.pth.tar'   # 89.654367 线上89.1
+        [[0.68807339 0.04587156 0.02293578 0.02752294 0.21559633]
+         [0.03196347 0.82191781 0.02511416 0.04109589 0.07990868]
+         [0.0167364  0.01464435 0.78870293 0.10460251 0.07531381]
+         [0.00265957 0.00569909 0.01367781 0.97074468 0.00721884]
+         [0.09689922 0.03682171 0.04457364 0.05232558 0.76937984]]         
+    '''
+
+    #model_file_name = 'efficientnet-b3_2021_01_06_09_42_16-best_model.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_01_06_15_55_39-best_model.pth.tar'
+
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
     if 'se_resnext50' in model_file_name:
@@ -160,18 +193,18 @@ if __name__ == "__main__":
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     else:
         model = models.resnet50(pretrained=False, num_classes=configs.num_classes)  # clw note: fc.weight: (num_class, 2048)
-
-    model.cuda()  # .half()
-
-    # from apex import amp
-    # from utils.misc import get_optimizer
-    # optimizer = get_optimizer(model)
-    # model, _ = amp.initialize(model, optimizer,
-    #                                   opt_level=configs.opt_level,
-    #                                   keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
-    #                                   # verbosity=0  # 不打印amp相关的日志
-    #                                   )
+    model.cuda()   # .half()
     model.load_state_dict(my_state_dict)
+
+    from apex import amp
+    from utils.misc import get_optimizer
+    optimizer = get_optimizer(model)
+    model, _ = amp.initialize(model, optimizer,
+                                      opt_level=configs.opt_level,
+                                      keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
+                                      # verbosity=0  # 不打印amp相关的日志
+                                      )
+
 
 
     val_files = get_files(configs.dataset + "/val/", "val")

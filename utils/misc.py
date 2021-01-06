@@ -42,7 +42,8 @@ def get_optimizer(model):
         return optim_t.SGD(model.parameters(),
                         lr = configs.lr,
                         momentum=configs.mom,
-                        weight_decay=configs.wd)
+                        weight_decay=configs.wd,
+                        nesterov=True)
     else:
         print("%s  optimizer will be add later"%configs.optim)
 
