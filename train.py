@@ -26,12 +26,15 @@ from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, W
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
 from utils.utils import rand_bbox
-
-######## clw modify
 from tqdm import tqdm
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
 tb_logger = SummaryWriter()  # clw modify
+
+######## clw modify: items for training
+do_cutmix_prob = 0
+
+
 
 # for train fp16
 if configs.fp16:
@@ -80,17 +83,18 @@ def main():
     # Data loading code
     train_data_df = get_files(configs.dataset+"/train/",   "train")  # DataFrame: ( image_nums, 2 )
     train_dataset = WeatherDataset(train_data_df, "train")
-    if train_dataset.do_cutmix_prob > 0:
-        logger.info('do cutmix in __get_item()__ !')
-    if train_dataset.do_mixup_prob > 0:
-        logger.info('do mixup in __get_item()__ !')
-    do_cutmix_prob = 0
-    if do_cutmix_prob > 0:
-        logger.info('do cutmix in a batch !')
-    assert (train_dataset.do_cutmix_prob == 0 or do_cutmix_prob == 0)  # can't >0 both
-
     val_data_df = get_files(configs.dataset+"/val/",   "val")
     val_dataset = WeatherDataset(val_data_df, "val")
+
+    if train_dataset.do_cutmix_prob > 0:
+        logger.info('\ndo cutmix in __get_item()__ !\n')
+    if train_dataset.do_mixup_prob > 0:
+        logger.info('\ndo mixup in __get_item()__ !\n')
+    if do_cutmix_prob > 0:
+        logger.info('\ndo cutmix in a batch !\n')
+    assert (train_dataset.do_cutmix_prob == 0 or do_cutmix_prob == 0)  # can't >0 both
+
+
 
     if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
         train_data_list = np.array(train_data_df).tolist()

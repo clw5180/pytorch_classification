@@ -8,7 +8,7 @@ import os
 import torch
 import random
 import numpy as np
-from utils.utils import rand_bbox
+from utils.utils import rand_bbox_clw
 
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
@@ -152,7 +152,7 @@ class WeatherDataset(Dataset):
 
         lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
         #lam = 0.9
-        bbx1, bby1, bbx2, bby2 = rand_bbox(img_w, img_h, lam)
+        bbx1, bby1, bbx2, bby2 = rand_bbox_clw(img_w, img_h, lam)
         img_new = img.copy()
         img_new[bby1:bby2, bbx1:bbx2, :] = r_img[bby1:bby2, bbx1:bbx2, :]
 
