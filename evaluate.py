@@ -171,7 +171,7 @@ if __name__ == "__main__":
     '''
 
     #model_file_name = 'efficientnet-b3_2021_01_06_09_42_16-best_model.pth.tar'
-    model_file_name = 'efficientnet-b3_2021_01_06_21_58_50-best_model.pth.tar'
+    model_file_name = 'efficientnet-b5_2021_01_07_15_12_14-best_model.pth.tar'
 
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
@@ -191,6 +191,15 @@ if __name__ == "__main__":
     elif "efficientnet-b4" in model_file_name:
         model = timm.create_model('tf_efficientnet_b4_ns', pretrained=False)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b5" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b5_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif configs.model_name.startswith("vit_base_patch16_384"):
+        model = timm.create_model('vit_base_patch16_384', pretrained=False)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
+    elif configs.model_name.startswith("vit_large_patch16_384"):
+        model = timm.create_model('vit_large_patch16_384', pretrained=True)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
     else:
         model = models.resnet50(pretrained=False, num_classes=configs.num_classes)  # clw note: fc.weight: (num_class, 2048)
     model.cuda()   # .half()

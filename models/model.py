@@ -133,6 +133,12 @@ def get_model():
     elif configs.model_name.startswith("efficientnet-b4"):
         model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)  # drop_path_rate=0.2~0.5
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif configs.model_name.startswith("efficientnet-b5"):
+        model = timm.create_model('tf_efficientnet_b5_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif configs.model_name.startswith("vit_base_patch16_384"):
+        model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=configs.num_classes)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
 
     # elif configs.model_name.startswith("efficientnet-b"):
     #     # efficientNet

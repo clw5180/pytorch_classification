@@ -8,7 +8,7 @@ import os
 import torch
 import random
 import numpy as np
-from utils.utils import rand_bbox_clw
+from utils.utils import rand_bbox_clw, RandomErasing
 
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
@@ -29,12 +29,12 @@ albu_transforms_train =  [
                 ### new try
                 A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR,
                                    border_mode=cv2.BORDER_REFLECT101, p=0.5),
+
                 # border_mode=cv2.BORDER_REPLICATE  BORDER_REFLECT101 BORDER_CONSTANT
                 A.VerticalFlip(p=0.5),
                 A.HorizontalFlip(p=0.5),
-                A.OneOf([A.RandomBrightness(limit=0.1, p=1), A.RandomContrast(limit=0.1, p=1)]),
-                A.OneOf([A.MotionBlur(blur_limit=3), A.MedianBlur(blur_limit=3), A.GaussianBlur(blur_limit=3)], p=0.3),
-                A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
+                #A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
+                A.Lambda(image=RandomErasing()),
                 A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
                 A.Normalize(),  # A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
                 ToTensorV2()
@@ -164,6 +164,7 @@ class WeatherDataset(Dataset):
         label_new = label_one_hot * lam + r_label_one_hot * (1 - lam)
 
         img_new = train_aug(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+        #img_new = train_aug_cutmix(image=img_new)['image']
 
         return img_new, label_new
 
