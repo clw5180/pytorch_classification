@@ -117,7 +117,6 @@ def get_model():
         model = models.resnet50(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(2048, configs.num_classes)
-
         # model = timm.create_model("resnet50", pretrained=True)
         # model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
 
@@ -137,7 +136,7 @@ def get_model():
         model = timm.create_model('tf_efficientnet_b5_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif configs.model_name.startswith("vit_base_patch16_384"):
-        model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=configs.num_classes)
+        model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=configs.num_classes, drop_rate=0.1)
         model.head = nn.Linear(model.head.in_features, configs.num_classes)
     elif configs.model_name.startswith("vit_large_patch16_384"):
         model = timm.create_model('vit_large_patch16_384', pretrained=True, num_classes=configs.num_classes)
@@ -145,18 +144,6 @@ def get_model():
     elif configs.model_name.startswith('vit_base_resnet50_384'):
         model = timm.create_model('vit_base_resnet50_384', pretrained=True, num_classes=configs.num_classes)
         model.head = nn.Linear(model.head.in_features, configs.num_classes)
-
-    # elif configs.model_name.startswith("efficientnet-b"):
-    #     # efficientNet
-    #     model_name = configs.model_name[:15]
-    #     model = EfficientNet.from_name(model_name)
-    #     model.load_state_dict(torch.load(weights[model_name]))
-    #     in_features = model._fc.in_features
-    #     model._fc = nn.Sequential(
-    #                     nn.BatchNorm1d(in_features),
-    #                     nn.Dropout(0.5),  # TODO
-    #                     nn.Linear(in_features, configs.num_classes),
-    #                      )
 
     elif configs.model_name == 'shufflenetv2_x0_5':  # clw modify
         model = models.shufflenet_v2_x0_5(pretrained=True)  # clw modify

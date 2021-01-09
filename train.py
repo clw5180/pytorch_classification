@@ -25,7 +25,7 @@ from utils.reader import WeatherDataset, albu_transforms_train
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
-from utils.utils import rand_bbox
+from utils.utils import rand_bbox, freeze_batchnorm_stats
 from tqdm import tqdm
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
@@ -85,15 +85,6 @@ def main():
     train_dataset = WeatherDataset(train_data_df, "train")
     val_data_df = get_files(configs.dataset+"/val/",   "val")
     val_dataset = WeatherDataset(val_data_df, "val")
-
-    if train_dataset.do_cutmix_prob > 0:
-        logger.info('\ndo cutmix in __get_item()__ !\n')
-    if train_dataset.do_mixup_prob > 0:
-        logger.info('\ndo mixup in __get_item()__ !\n')
-    if do_cutmix_prob > 0:
-        logger.info('\ndo cutmix in a batch !\n')
-    assert (train_dataset.do_cutmix_prob == 0 or do_cutmix_prob == 0)  # can't >0 both
-
 
 
     if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
@@ -204,6 +195,8 @@ def main():
         if configs.lr_scheduler == "adjust":
             adjust_learning_rate(optimizer,epoch)
 
+        if epoch < configs.freeze_bn_epochs:
+            freeze_batchnorm_stats(model)
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
         train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine_change_per_batch" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
         val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
@@ -266,8 +259,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw note: inputs: (32, 3, 224, 224)  # 在这里可以把所有stage的feature map返回，便于下面可视化；
 
         ### clw added: cutmix, same as official -  https://github.com/clovaai/CutMix-PyTorch
-        r = np.random.rand(1)
-        if r < do_cutmix_prob:
+        if np.random.rand(1) < configs.do_cutmix_in_batch:
             # generate mixed sample
             lam = np.random.beta(1.0, 1.0)
             rand_index = torch.randperm(inputs.size()[0]).cuda()
@@ -292,28 +284,13 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
         # tb_logger.add_image('image_0', make_grid(inputs[0], normalize=True), curr_step)  # 注意这样会导致训练速度下降很多,gpu利用率明显降低 !!!从97左右降到60 70左右
         #                                                                                 # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，所以这里要用到make_grid，再归一化到0～1之间；
-        # tb_logger.add_image('image_1', make_grid(inputs[1], normalize=True), curr_step)
-        # tb_logger.add_image('image_2', make_grid(inputs[2], normalize=True), curr_step)
-        # tb_logger.add_image('image_3', make_grid(inputs[3], normalize=True), curr_step)
-        # tb_logger.add_image('feature_111', make_grid(torch.sum(feature_1[0], dim=0), normalize=True), curr_step)
-        # tb_logger.add_image('feature_222', make_grid(torch.sum(feature_2[0], dim=0), normalize=True), curr_step)
-        # tb_logger.add_image('feature_333', make_grid(torch.sum(feature_3[0], dim=0), normalize=True), curr_step)
-        # tb_logger.add_image('feature_444', make_grid(torch.sum(feature_4[0], dim=0), normalize=True), curr_step)
-
-        ### tb_logger.add_image('feature_1', make_grid(feature_1[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_2', make_grid(feature_2[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_3', make_grid(feature_3[0].unsqueeze(dim=1), normalize=False), curr_step)
-        ### tb_logger.add_image('feature_4', make_grid(feature_4[0].unsqueeze(dim=1), normalize=False), curr_step)
-
-
         ####################################################
 
+
         # measure accuracy and record loss
-        #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
         prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]  # clw note: 这里计算acc； 如果只有两个类，此时top5会报错;
         losses.update(loss.item(), inputs.size(0))
         top1.update(prec1.item(), inputs.size(0))
-        #top5.update(prec5.item(), inputs.size(0))
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -334,17 +311,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         end = time.time()
 
         # plot progress
-        # bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | Loss: {loss:.4f} | top1: {top1: .4f} | top5: {top5: .4f}'.format(
-        #             batch=batch_idx + 1,
-        #             size=len(train_loader),
-        #             data=data_time.val,
-        #             bt=batch_time.val,
-        #             total=bar.elapsed_td,
-        #             eta=bar.eta_td,
-        #             loss=losses.avg,
-        #             top1=top1.avg,
-        #             top5=top5.avg,
-        #             )
         bar.suffix  = '({batch}/{size}) Data: {data:.3f}s | Batch: {bt:.3f}s | Total: {total:} | ETA: {eta:} | LR: {lr:.6f} | Loss: {loss:.4f} | top1: {top1: .4f} '.format(
                     batch=batch_idx + 1,
                     size=len(train_loader),
@@ -358,7 +324,6 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
                     )
         bar.next()
     bar.finish()
-    #return (losses.avg, top1.avg, top5.avg)
     return (losses.avg, top1.avg, 1)
 
 
@@ -367,7 +332,6 @@ def validate(val_loader, model, criterion, epoch):
     data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
-    #top5 = AverageMeter()
 
     # switch to evaluate mode
     model.eval()
@@ -389,11 +353,9 @@ def validate(val_loader, model, criterion, epoch):
 
 
             # measure accuracy and record loss
-            #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
-            prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
+            prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]  #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
             losses.update(val_loss.item(), inputs.size(0))
             top1.update(prec1.item(), inputs.size(0))
-            #top5.update(prec5.item(), inputs.size(0))
 
             # measure elapsed time
             batch_time.update(time.time() - end)
@@ -413,9 +375,7 @@ def validate(val_loader, model, criterion, epoch):
             bar.next()
 
     bar.finish()
-    #return (losses.avg, top1.avg, top5.avg)
     return (losses.avg, top1.avg, 1)
-
 
 
 if __name__ == '__main__':

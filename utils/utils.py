@@ -1,6 +1,7 @@
 import numpy as np
 import random
 import math
+import torch.nn as nn
 
 def rand_bbox(size, lam):
     W = size[2]
@@ -117,3 +118,15 @@ def RandomErasing2(img, probability=0.5, sl=0.02, sh=0.4, r1=0.3, mean=[110.162,
             return img_out
 
     return img
+
+
+################ freeze bn
+def freeze_batchnorm_stats(net):
+    try:
+        for m in net.modules():
+            if isinstance(m, nn.BatchNorm2d):
+                #print(m)
+                m.eval()
+    except ValueError:
+        print('error with batchnorm2d')
+        return
