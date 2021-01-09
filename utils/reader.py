@@ -8,7 +8,7 @@ import os
 import torch
 import random
 import numpy as np
-from utils.utils import rand_bbox_clw, RandomErasing
+from utils.utils import rand_bbox_clw, RandomErasing, RandomErasing2
 
 input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
 
@@ -28,15 +28,19 @@ albu_transforms_train =  [
 
                 ### new try
                 A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR,
-                                   border_mode=cv2.BORDER_REFLECT101, p=0.5),
+                       border_mode=cv2.BORDER_REFLECT101, p=0.5),
+
+                # A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR,
+                #                    border_mode=cv2.BORDER_REFLECT101, p=0.5),
 
                 # border_mode=cv2.BORDER_REPLICATE  BORDER_REFLECT101 BORDER_CONSTANT
                 A.VerticalFlip(p=0.5),
                 A.HorizontalFlip(p=0.5),
-                #A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
-                A.Lambda(image=RandomErasing()),
+                A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
+                #A.Lambda(image=RandomErasing),
                 A.OneOf([A.RandomRotate90(p=1), A.Transpose(p=1)], p=0.5),
-                A.Normalize(),  # A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
+                A.Normalize(),
+                #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
                 ToTensorV2()
 
                 #A.RandomResizedCrop(600, 800, scale=(0.8, 1.2), ratio=(0.75, 1.3333), p=0.5),  # #A.RandomCrop( int(input_size[1]*0.8), int(input_size[0]*0.8), p=0.5 ),  # clw note：注意这里顺序是 h, w;
@@ -48,10 +52,13 @@ albu_transforms_train =  [
             ]
 
 albu_transforms_val = [
-                A.Normalize(), #A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
+
+                A.Normalize(),
+                #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
                 ToTensorV2()
             ]
 train_aug = A.Compose(albu_transforms_train)
+my_resize = A.Compose([A.RandomResizedCrop(input_size[0], input_size[1], scale=(0.6, 1.0), ratio=(0.6, 1.66666))])
 val_aug = A.Compose(albu_transforms_val)
 
 
@@ -90,8 +97,16 @@ class WeatherDataset(Dataset):
         else:  # train or val, all need label
             filename, label = self.imgs[index]
             img = cv2.imread(filename)
+
+            ### 1 resize
             input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
             img = cv2.resize(img, input_size)
+            ###
+
+            ### 2 RandomResizedCrop
+            #img = my_resize(image=img)['image']
+            ####
+
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             label = torch.tensor(label).long()
 
@@ -148,6 +163,8 @@ class WeatherDataset(Dataset):
         r_filename, r_label = self.imgs[r_idx]
         r_img = cv2.imread(os.path.join(configs.dataset + "/train/", r_filename))
         r_img = cv2.resize(r_img, input_size)
+        ###r_img = my_resize(image=r_img)['image']
+
         r_img = cv2.cvtColor(r_img, cv2.COLOR_BGR2RGB)
 
         lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
@@ -164,7 +181,6 @@ class WeatherDataset(Dataset):
         label_new = label_one_hot * lam + r_label_one_hot * (1 - lam)
 
         img_new = train_aug(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
-        #img_new = train_aug_cutmix(image=img_new)['image']
 
         return img_new, label_new
 

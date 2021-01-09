@@ -137,8 +137,7 @@ def main():
     if configs.lr_scheduler == "step":
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
         #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[5, 10, 15, 19],
-                                                         gamma=0.3)  # clw note: 学习率每step_size变为之前的0.1
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=configs.step_milestones, gamma=configs.step_gamma)  # clw note: 学习率每step_size变为之前的0.1
     elif configs.lr_scheduler == "cosine_change_per_batch":
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
         # scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)

@@ -171,7 +171,8 @@ if __name__ == "__main__":
     '''
 
     #model_file_name = 'efficientnet-b3_2021_01_06_09_42_16-best_model.pth.tar'
-    model_file_name = 'efficientnet-b5_2021_01_07_15_12_14-best_model.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_01_08_19_49_45-best_model.pth.tar'
+    #model_file_name = 'efficientnet-b5_2021_01_07_15_12_14-best_model.pth.tar'
 
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']

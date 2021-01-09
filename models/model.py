@@ -139,6 +139,12 @@ def get_model():
     elif configs.model_name.startswith("vit_base_patch16_384"):
         model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=configs.num_classes)
         model.head = nn.Linear(model.head.in_features, configs.num_classes)
+    elif configs.model_name.startswith("vit_large_patch16_384"):
+        model = timm.create_model('vit_large_patch16_384', pretrained=True, num_classes=configs.num_classes)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
+    elif configs.model_name.startswith('vit_base_resnet50_384'):
+        model = timm.create_model('vit_base_resnet50_384', pretrained=True, num_classes=configs.num_classes)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
 
     # elif configs.model_name.startswith("efficientnet-b"):
     #     # efficientNet
