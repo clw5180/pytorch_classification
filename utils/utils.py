@@ -39,7 +39,8 @@ def rand_bbox_clw(img_w, img_h, lam):
     bby2 = np.clip(cy + cut_h // 2, 0, H)
     return bbx1, bby1, bbx2, bby2
 
-def RandomErasing(img, p=0.3, sl=0.02, sh=0.3, r1=0.3, **kwargs):
+#def RandomErasing(img, p=0.3, sl=0.02, sh=0.3, r1=0.3, **kwargs):
+def RandomErasing(img, p=1, sl=0.02, sh=0.3, r1=0.3, **kwargs):
     """Random erasing the an rectangle region in Image.
     Class that performs Random Erasing in Random Erasing Data Augmentation by Zhong et al.
     Args:

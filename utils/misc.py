@@ -12,6 +12,8 @@ import time
 
 time_local = time.localtime()  # clw modify
 
+from ranger import Ranger  # this is from ranger.py
+
 def get_optimizer(model):
     if configs.optim == "adam":
         return optim_t.Adam(model.parameters(),
@@ -24,10 +26,7 @@ def get_optimizer(model):
                     betas=(configs.beta1,configs.beta2),
                     weight_decay=configs.wd)
     elif configs.optim == "ranger":
-        return Ranger(model.parameters(),
-                      lr = configs.lr,
-                      betas=(configs.beta1,configs.beta2),
-                      weight_decay=configs.wd)
+        return Ranger(model.parameters(), lr=1e-2)
     elif configs.optim == "over9000":
         return Over9000(model.parameters(),
                         lr = configs.lr,

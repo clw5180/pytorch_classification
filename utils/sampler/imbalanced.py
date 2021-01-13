@@ -1,7 +1,7 @@
 import torch
 import torch.utils.data
 import torchvision
-from utils.reader import WeatherDataset
+from utils.reader import CassavaTrainingDataset
 import numpy as np
 
 class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
@@ -14,7 +14,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
 
     def __init__(self, dataset, indices=None, num_samples=None, callback_get_label=None):
 
-        if isinstance(dataset, WeatherDataset):
+        if isinstance(dataset, CassavaTrainingDataset):
             self.data_list_all = np.array(dataset.label_list).tolist()
 
         # if indices is not provided,
@@ -53,7 +53,7 @@ class ImbalancedDatasetSampler(torch.utils.data.sampler.Sampler):
             return dataset.imgs[idx][1]
         elif isinstance(dataset, torch.utils.data.Subset):
             return dataset.dataset.imgs[idx][1]
-        elif isinstance(dataset, WeatherDataset):
+        elif isinstance(dataset, CassavaTrainingDataset):
             return self.data_list_all[idx][1]
         else:
             raise NotImplementedError

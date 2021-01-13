@@ -6,7 +6,7 @@ import os
 import torch.nn as nn
 import torch.nn.parallel
 import torch.backends.cudnn as cudnn
-import torch.optim
+from torch.optim import lr_scheduler
 import torch.utils.data
 import torch.utils.data.distributed
 import torchvision.transforms as transforms
@@ -14,6 +14,7 @@ import torchvision.datasets as datasets
 import numpy as np
 
 from PIL import ImageFile
+from config import DefaultConfigs
 from config import configs
 from models.model import get_model
 from sklearn.model_selection import train_test_split
@@ -21,7 +22,9 @@ from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learnin
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
-from utils.reader import WeatherDataset, albu_transforms_train
+
+
+from utils.reader import CassavaTrainingDataset, albu_transforms_train
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
@@ -29,7 +32,16 @@ from utils.utils import rand_bbox, freeze_batchnorm_stats
 from tqdm import tqdm
 from torchvision.utils import make_grid
 from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
-tb_logger = SummaryWriter()  # clw modify
+tb_logger = SummaryWriter()
+import argparse
+
+t_s = time.time()
+hour = 0.0
+minute = 0
+second = 0
+while 1:
+    if time.time() - t_s > (hour*60+minute)*60+second:
+        break
 
 ######## clw modify: items for training
 do_cutmix_prob = 0.0
@@ -71,7 +83,37 @@ def makdir():
 makdir()
 
 
+# python train.py --model_name efficientnet-b3 --epochs 20 --step_milestones [7, 12, 17]
+# python train.py --model_name efficientnet-b4 --epochs 20 --step_milestones [7, 12, 17]
+# python train.py --model_name efficientnet-b5 --epochs 20 --step_milestones [7, 12, 17]
+# python train.py --model_name vit_base_patch16_384 --epochs 20 --step_milestones [7, 12, 17]
+# python train.py --model_name se_resnext50_32x4d --epochs 20 --step_milestones [7, 12, 17]
+
+# python train.py --model_name efficientnet-b3
+# python train.py --model_name efficientnet-b4
+# python train.py --model_name efficientnet-b5
+# python train.py --model_name vit_base_patch16_384
+# python train.py --model_name se_resnext50_32x4d
+
 def main():
+    parser = argparse.ArgumentParser(description="PyTorch Template Training")
+    parser.add_argument("--model_name", default=configs.model_name, help="", type=str)
+    parser.add_argument("--epochs", default=configs.epochs, help="", type=int)
+    parser.add_argument("--lr", default=configs.lr, help="", type=float)
+    parser.add_argument("--step_gamma", default=configs.step_gamma, help="", type=float)
+    parser.add_argument("--accum_iter", default=configs.accum_iter, help="", type=int)
+    parser.add_argument("--step_milestones", default=configs.step_milestones, help="", nargs='+', type=int)
+    args = parser.parse_args()
+
+    # 如果用shell传入参数,则修改config
+    configs.input_size = (512, 512) if "vit" not in args.model_name else (384, 384)
+    configs.model_name = args.model_name
+    configs.epochs = args.epochs
+    configs.lr = args.lr
+    configs.step_gamma = args.step_gamma
+    configs.accum_iter = args.accum_iter
+    configs.step_milestones = args.step_milestones
+
     logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name, resume=configs.resume)
     logger.info(str(configs))
     logger.info(str(albu_transforms_train))
@@ -82,9 +124,9 @@ def main():
 
     # Data loading code
     train_data_df = get_files(configs.dataset+"/train/",   "train")  # DataFrame: ( image_nums, 2 )
-    train_dataset = WeatherDataset(train_data_df, "train")
+    train_dataset = CassavaTrainingDataset(train_data_df, "train")
     val_data_df = get_files(configs.dataset+"/val/",   "val")
-    val_dataset = WeatherDataset(val_data_df, "val")
+    val_dataset = CassavaTrainingDataset(val_data_df, "val")
 
 
     if configs.sampler == "WeightedSampler":          # TODO：解决类别不平衡问题：根据不同类别样本数量给予不同的权重
@@ -128,27 +170,20 @@ def main():
     if configs.lr_scheduler == "step":
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
         #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=configs.step_milestones, gamma=configs.step_gamma)  # clw note: 学习率每step_size变为之前的0.1
+        scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=configs.step_milestones, gamma=configs.step_gamma)  # clw note: 学习率每step_size变为之前的0.1
     elif configs.lr_scheduler == "cosine_change_per_batch":
         # scheduler = torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, configs.epochs, eta_min=1e-6, last_epoch=-1)  # clw modify
         # scheduler = WarmupCosineAnnealingLR(optimizer, max_iters=configs.epochs * len(train_loader), delay_iters=1000, eta_min_lr=1e-5)
         # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer, T_max=configs.epochs * len(train_loader), T_warmup= 3 * len(train_loader), eta_min=1e-5)
-        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=len(train_loader),
-                                    eta_min=1e-6)  # clw note: 默认cosine是按batch来更新 ; warmup_iters=500, eta_min=1e-7
+        scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=len(train_loader), eta_min=1e-6)  # clw note: 默认cosine是按batch来更新 ; warmup_iters=500, eta_min=1e-7
     elif configs.lr_scheduler == "cosine_change_per_epoch":
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1,
-                                                                         eta_min=1e-6)  # clw note: usually 1e-6
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1, eta_min=1e-6)  # clw note: usually 1e-6
     elif configs.lr_scheduler == "on_loss":
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4,
-                                                               verbose=False)
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
     elif configs.lr_scheduler == "on_acc":
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5,
-                                                               verbose=False)
-    elif configs.lr_scheduler == "adjust":
-        pass
-    else:
-        raise Exception("Not implement this lr_scheduler, please modify config.py !!!")
+        scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5, verbose=False)
+
     # for fp16
     if configs.fp16:
         model, optimizer = amp.initialize(model, optimizer,
@@ -173,10 +208,13 @@ def main():
     if configs.loss_func == "LabelSmoothingLoss":
         criterion = LabelSmoothingLoss(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
     elif configs.loss_func == "LabelSmoothingLoss_clw":
-        criterion = LabelSmoothingLoss_clw(configs.label_smooth_epsilon,
-                                           configs.num_classes)  # now better than 0.05 and 0.1  TODO
+        criterion = LabelSmoothingLoss_clw(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
     elif configs.loss_func == "CELoss":
         criterion = nn.CrossEntropyLoss()
+    elif configs.loss_func == "TaylorCrossEntropyLoss":
+        criterion = TaylorCrossEntropyLoss()
+    elif configs.loss_func == "SymmetricCrossEntropy":
+        criterion = SymmetricCrossEntropy()
     elif configs.loss_func == "BCELoss":
         criterion = nn.BCEWithLogitsLoss()
     elif configs.loss_func == "FocalLoss":
@@ -185,6 +223,7 @@ def main():
         criterion = FocalLoss_clw()
     else:
         raise Exception("No this loss type, please check config.py !!!")
+
 
     ###################################################
 
@@ -246,7 +285,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
     end = time.time()
 
     batch_nums = len(train_loader)  # clw add
-
+    criterion2 = LabelSmoothingLoss_clw(label_smoothing=0, class_nums=configs.num_classes)
 
     bar = Bar('Training: ', max=len(train_loader))
     for batch_idx, (inputs, targets) in enumerate(train_loader):
@@ -271,7 +310,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
             lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inputs.size()[-1] * inputs.size()[-2]))
             # compute output
             outputs = model(inputs)
-            loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
+            #loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
+
+            loss = criterion2(outputs, target_a) * lam + criterion2(outputs, target_b) * (1. - lam)  #### no label smooth when using cutmix
         else:
             # compute output
             outputs = model(inputs)
@@ -293,18 +334,22 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
         top1.update(prec1.item(), inputs.size(0))
 
         # compute gradient and do SGD step
-        optimizer.zero_grad()
+
+
+        #optimizer.zero_grad()
         if configs.fp16:
             with amp.scale_loss(loss, optimizer) as scaled_loss:
                 scaled_loss.backward()
         else:
             loss.backward()
 
-        # clip gradient
-        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1000.0, norm_type=2)  # TODO
-        optimizer.step()
-        if scheduler is not None:  # clw modify
-            scheduler.step()
+
+        if ((batch_idx + 1) % configs.accum_iter == 0) or ((batch_idx + 1) == len(train_loader)):  # clw note: TODO
+            torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1000.0, norm_type=2)  # # clip gradient 梯度的L2如果大于max_max_norm, will be cliped # TODO
+            optimizer.step()
+            optimizer.zero_grad()
+            if scheduler is not None:  # clw modify
+                scheduler.step()
 
         # measure elapsed time
         batch_time.update(time.time() - end)
@@ -323,6 +368,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
                     top1=top1.avg,
                     )
         bar.next()
+
     bar.finish()
     return (losses.avg, top1.avg, 1)
 

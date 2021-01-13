@@ -52,7 +52,7 @@ albu_transforms_val = [
 val_aug = A.Compose(albu_transforms_val)
 
 
-class CassavaDataset(Dataset):
+class CassavaValDataset(Dataset):
     def __init__(self, ):
         pass
 
@@ -106,7 +106,7 @@ if __name__ == '__main__':
         model.load_state_dict(torch.load(f, map_location=lambda storage, loc: storage)['state_dict'], strict=True)
         net1.append(model)
 
-    dataset = CassavaDataset()
+    dataset = CassavaValDataset()
     data_loader = DataLoader(
         dataset,
         sampler=SequentialSampler(dataset),

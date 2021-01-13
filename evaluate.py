@@ -6,7 +6,7 @@ import time
 import torch
 from utils.misc import AverageMeter, accuracy, get_files
 from progress.bar import Bar
-from utils.reader import WeatherDataset
+from utils.reader import CassavaValDataset
 from config import configs
 import torchvision.transforms as transforms
 from tqdm import tqdm
@@ -16,7 +16,19 @@ import pretrainedmodels
 import torch.nn as nn
 import timm
 from torch.utils.data.sampler import *
+from models import get_model_no_pretrained
+import torch.nn.functional as F
+import random
 
+# set random seed
+def seed_everything(seed):
+    random.seed(seed)
+    os.environ['PYTHONHASHSEED'] = str(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    torch.cuda.manual_seed(seed)
+    torch.backends.cudnn.deterministic = True
+seed_everything(42)
 
 # 绘制混淆矩阵  参考：https://www.jianshu.com/p/cd59aed787cf?open_source=weibo_search
 def plot_confusion_matrix(cm, classes, title=None, cmap=plt.cm.Reds):  # plt.cm.Blues
@@ -97,18 +109,41 @@ def validate_and_analysis(val_loader, model):
             data_time.update(time.time() - end)
             inputs, targets = inputs.cuda(), targets.cuda()  # .half()
 
-            # compute output
-            #outputs = model(inputs)
-            #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
-            outputs = model(inputs)
-            predict_class_ids = torch.argmax(outputs.data, dim=1).cpu().numpy()
+            # img0_tensor = img_tensor[:, :, :, :384]
+            # img1_tensor = img_tensor[:, :, :, 384:768]
+            # img2_tensor = img_tensor[:, :, :, 768:1152]
+            # img3_tensor = img_tensor[:, :, :, 1152:1536]
+            # img4_tensor = img_tensor[:, :, :, 1536:1920]
+            img0_tensor = inputs[:, :, :, :512]
+            img1_tensor = inputs[:, :, :, 512:1024]
+            img2_tensor = inputs[:, :, :, 1024:1536]
+            img3_tensor = inputs[:, :, :, 1536:2048]
+            img4_tensor = inputs[:, :, :, 2048:2560]
+
+            p = []
+            ####
+            logit = model(img0_tensor)              #feature_1, feature_2, feature_3, feature_4, outputs = model(inputs)  # clw modify
+            p.append(F.softmax(logit, -1))
+            # logit = model(img1_tensor)
+            # p.append(F.softmax(logit, -1))
+            # logit = model(img2_tensor)
+            # p.append(F.softmax(logit, -1))
+            # logit = model(img3_tensor)
+            # p.append(F.softmax(logit, -1))
+            # logit = model(img4_tensor)
+            # p.append(F.softmax(logit, -1))
+            ####
+
+            p = torch.stack(p).mean(0)
+
+            predict_class_ids = torch.argmax(p, dim=1).cpu().numpy()
             true_label_class_ids = torch.argmax(targets.data, dim=1).cpu().numpy()
             for i in range( inputs.shape[0] ):
                 label_predict_matrix[ true_label_class_ids[i] ][ predict_class_ids[i] ] += 1
 
             # measure accuracy and record loss
-            #prec1, prec5 = accuracy(outputs.data, targets.data, topk=(1, 5))
-            prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
+            #prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]
+            prec1 = accuracy(p, targets.data, topk=(1,))[0]
             top1.update(prec1.item(), inputs.size(0))
             #top5.update(prec5.item(), inputs.size(0))
 
@@ -135,92 +170,18 @@ def validate_and_analysis(val_loader, model):
 
 if __name__ == "__main__":
     model_root_path = '/home/user/pytorch_classification/checkpoints'
-    #model_file_name = 'resnet50_2021_01_01_10_22_18-checkpoint.pth.tar'
-    #model_file_name = 'resnet50_2020_12_31_20_46_33-checkpoint.pth.tar'
-    #model_file_name = 'resnet50_2020_12_31_20_29_11-checkpoint.pth.tar'
-    #model_file_name = 'se_resnext50_32x4d_2021_01_01_20_23_36-checkpoint.pth.tar'
-
-    '''
-    model_file_name = 'efficientnet-b3_2021_01_05_21_21_49-best_model.pth.tar'  # 89.327417  cutmix reflect101
-        [[0.67889908 0.05045872 0.02293578 0.03211009 0.21559633]              # but again 89.3046
-        [0.0456621  0.82876712 0.02054795 0.043379   0.06164384]
-        [0.01464435 0.02301255 0.77196653 0.12761506 0.06276151]
-        [0.0018997  0.00379939 0.00987842 0.97758359 0.00683891]
-        [0.08333333 0.05620155 0.04069767 0.09883721 0.72093023]]
-
-   model_file_name = 'efficientnet-b3_2021_01_05_19_22_28-best_model.pth.tar'  # 89.280710    cutmix  
-        [[0.60550459 0.05504587 0.02752294 0.02752294 0.28440367]
-         [0.043379   0.81506849 0.02968037 0.03652968 0.07534247]
-         [0.0209205  0.01882845 0.77196653 0.10669456 0.08158996]
-         [0.0018997  0.00265957 0.01253799 0.97606383 0.00683891]
-         [0.0755814  0.03875969 0.04069767 0.07751938 0.76744186]]
-         
-   model_file_name = 'efficientnet-b3_2021_01_05_15_43_49-best_model.pth.tar'  # 88.953760, but online:0.8946??      
-        [[0.71100917 0.02293578 0.01834862 0.01834862 0.2293578 ]       .half:  88.930406  apex same...
-         [0.04794521 0.74885845 0.03881279 0.04109589 0.12328767]
-         [0.01882845 0.01046025 0.79916318 0.10460251 0.06694561]
-         [0.00455927 0.00151976 0.01785714 0.96808511 0.00797872]
-         [0.10077519 0.02325581 0.06007752 0.04844961 0.76744186]]
-         
-    model_file_name = 'efficientnet-b3_2021_01_05_13_31_01-best_model.pth.tar'   # 89.654367 线上89.1
-        [[0.68807339 0.04587156 0.02293578 0.02752294 0.21559633]
-         [0.03196347 0.82191781 0.02511416 0.04109589 0.07990868]
-         [0.0167364  0.01464435 0.78870293 0.10460251 0.07531381]
-         [0.00265957 0.00569909 0.01367781 0.97074468 0.00721884]
-         [0.09689922 0.03682171 0.04457364 0.05232558 0.76937984]]         
-    '''
-
-    #model_file_name = 'efficientnet-b3_2021_01_06_09_42_16-best_model.pth.tar'
-    model_file_name = 'efficientnet-b3_2021_01_08_19_49_45-best_model.pth.tar'
-    #model_file_name = 'efficientnet-b5_2021_01_07_15_12_14-best_model.pth.tar'
-
+    #model_file_name = 'efficientnet-b3_2021_01_11_16_03_30-checkpoint.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_01_12_00_06_11-best_model.pth.tar'
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
-    if 'se_resnext50' in model_file_name:
-        model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
-        model.last_linear=nn.Linear(2048, configs.num_classes)
-        model.avg_pool = nn.AdaptiveAvgPool2d(1)
-    elif "efficientnet-b0" in model_file_name:
-        model = timm.create_model('tf_efficientnet_b0_ns', pretrained=False)
-        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-    elif "efficientnet-b2" in model_file_name:
-        model = timm.create_model('tf_efficientnet_b2_ns', pretrained=False)
-        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-    elif "efficientnet-b3" in model_file_name:
-        model = timm.create_model('tf_efficientnet_b3_ns', pretrained=False)
-        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-    elif "efficientnet-b4" in model_file_name:
-        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=False)
-        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-    elif "efficientnet-b5" in model_file_name:
-        model = timm.create_model('tf_efficientnet_b5_ns', pretrained=False)
-        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
-    elif configs.model_name.startswith("vit_base_patch16_384"):
-        model = timm.create_model('vit_base_patch16_384', pretrained=False)
-        model.head = nn.Linear(model.head.in_features, configs.num_classes)
-    elif configs.model_name.startswith("vit_large_patch16_384"):
-        model = timm.create_model('vit_large_patch16_384', pretrained=True)
-        model.head = nn.Linear(model.head.in_features, configs.num_classes)
-    else:
-        model = models.resnet50(pretrained=False, num_classes=configs.num_classes)  # clw note: fc.weight: (num_class, 2048)
-    model.cuda()   # .half()
-    model.load_state_dict(my_state_dict)
-
-    from apex import amp
-    from utils.misc import get_optimizer
-    optimizer = get_optimizer(model)
-    model, _ = amp.initialize(model, optimizer,
-                                      opt_level=configs.opt_level,
-                                      keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
-                                      # verbosity=0  # 不打印amp相关的日志
-                                      )
-
+    model = get_model_no_pretrained(model_file_name, my_state_dict)
+    model.cuda()
 
 
     val_files = get_files(configs.dataset + "/val/", "val")
-    val_dataset = WeatherDataset(val_files, mode="val")
+    val_dataset = CassavaValDataset(val_files)
     val_loader = torch.utils.data.DataLoader(
-        val_dataset, batch_size=configs.bs, shuffle=False, sampler=SequentialSampler(val_dataset),
+        val_dataset, batch_size=32, shuffle=False, sampler=SequentialSampler(val_dataset),
         num_workers=configs.workers, pin_memory=True
     )
 

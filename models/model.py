@@ -82,13 +82,17 @@ class se_resnext50_32x4d(nn.Module):
 
 def get_model():
     if configs.model_name.startswith("resnext50_32x4d"):
-        model = torchvision.models.resnext50_32x4d(pretrained=True)
-        model.avgpool = nn.AdaptiveAvgPool2d(1)
-        model.fc = nn.Linear(2048, configs.num_classes)
-        model.cuda()
+        # model = torchvision.models.resnext50_32x4d(pretrained=True)
+        # model.avgpool = nn.AdaptiveAvgPool2d(1)
+        # model.fc = nn.Linear(2048, configs.num_classes)
+        ####
+        model = timm.create_model('resnext50_32x4d', pretrained=True)
+        n_features = model.fc.in_features
+        model.fc = nn.Linear(n_features, configs.num_classes)
+
     elif configs.model_name.startswith("se_resnext50_32x4d"):
         #model = se_resnext50_32x4d(configs.num_classes)    # 自定义se_resnext50_32x4d, result not good
-
+        ####
         model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
         model.last_linear=nn.Linear(2048, configs.num_classes)
         model.avg_pool = nn.AdaptiveAvgPool2d(1)  # clw note: 在senet.py中，默认是self.avg_pool = nn.AvgPool2d(7, stride=1)，这里的7是根据imagenet输入224来的，所以要改一下，否则输出就不是 32,2048,1,1了
@@ -117,8 +121,12 @@ def get_model():
         model = models.resnet50(pretrained=True)
         model.avgpool = nn.AdaptiveAvgPool2d(1)
         model.fc = nn.Linear(2048, configs.num_classes)
+        print(model.relu)
+
         # model = timm.create_model("resnet50", pretrained=True)
         # model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
+
+
 
     elif configs.model_name.startswith("efficientnet-b0"):
         model = timm.create_model('tf_efficientnet_b0_ns', pretrained=True)
@@ -136,7 +144,7 @@ def get_model():
         model = timm.create_model('tf_efficientnet_b5_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif configs.model_name.startswith("vit_base_patch16_384"):
-        model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=configs.num_classes, drop_rate=0.1)
+        model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=configs.num_classes)  # , drop_rate=0.1)
         model.head = nn.Linear(model.head.in_features, configs.num_classes)
     elif configs.model_name.startswith("vit_large_patch16_384"):
         model = timm.create_model('vit_large_patch16_384', pretrained=True, num_classes=configs.num_classes)
@@ -182,4 +190,37 @@ def get_model():
             nn.init.constant_(model.fc.bias, bias)
         ####
 
+    return model
+
+
+def get_model_no_pretrained(model_file_name, my_state_dict):
+    if 'se_resnext50' in model_file_name:
+        model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
+        model.last_linear=nn.Linear(2048, configs.num_classes)
+        model.avg_pool = nn.AdaptiveAvgPool2d(1)
+    elif "efficientnet-b0" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b0_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b2" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b2_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b3" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b3_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b4" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif "efficientnet-b5" in model_file_name:
+        model = timm.create_model('tf_efficientnet_b5_ns', pretrained=False)
+        model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
+    elif configs.model_name.startswith("vit_base_patch16_384"):
+        model = timm.create_model('vit_base_patch16_384', pretrained=False)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
+    elif configs.model_name.startswith("vit_large_patch16_384"):
+        model = timm.create_model('vit_large_patch16_384', pretrained=True)
+        model.head = nn.Linear(model.head.in_features, configs.num_classes)
+    else:
+        model = models.resnet50(pretrained=False, num_classes=configs.num_classes)  # clw note: fc.weight: (num_class, 2048)
+
+    model.load_state_dict(my_state_dict)
     return model

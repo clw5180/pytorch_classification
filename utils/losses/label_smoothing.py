@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class LabelSmoothingLoss(nn.Module):
+class LabelSmoothingLoss(nn.Module):  # 单纯的label_smooth, 如果有图像混合类的数据增强如cutmix, mixup,就不能用
     def __init__(self, label_smoothing, class_nums, ignore_index=-100):
         assert 0.0 < label_smoothing <= 1.0
         self.ignore_index = ignore_index
@@ -25,8 +25,10 @@ class LabelSmoothingLoss(nn.Module):
 
         log_output = F.log_softmax(output, dim=1)
         model_prob = self.one_hot.repeat(target.size(0), 1).cuda()
-        class_idxs = torch.argmax(target, dim=1)                           # if target = [[0 1 0 0 0], [0 0 0 1 0], ...]
+
+        class_idxs = torch.argmax(target, dim=1)                           # if target = [[0 1 0 0 0], [0 0 0 1 0], ...]  clw note: one-hot to class_id
         model_prob.scatter_(1, class_idxs.unsqueeze(1), self.confidence)
+
         #model_prob.scatter_(1, target.unsqueeze(1), self.confidence)      # if target = [1, 3, 4, 2, 0.... 0]
 
         if self.ignore_index >= 0:
@@ -39,7 +41,7 @@ class LabelSmoothingLoss(nn.Module):
 
 class LabelSmoothingLoss_clw(nn.Module):   # clw note: for mixup TODO
     def __init__(self, label_smoothing, class_nums, ignore_index=-100):
-        assert 0.0 < label_smoothing <= 1.0
+        assert 0.0 <= label_smoothing <= 1.0
         self.ignore_index = ignore_index
         super(LabelSmoothingLoss_clw, self).__init__()
 
