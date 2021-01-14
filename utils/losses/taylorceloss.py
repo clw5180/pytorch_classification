@@ -35,7 +35,7 @@ class TaylorCrossEntropyLoss(nn.Module):
     This is the autograd version
     '''
     #def __init__(self, n=2, ignore_index=-1, reduction='mean'):
-    def __init__(self, n=2, ignore_index=-1, reduction='mean'):  # clw modify
+    def __init__(self, n=4, ignore_index=-1, reduction='mean'):  # clw modify
         super(TaylorCrossEntropyLoss, self).__init__()
         assert n % 2 == 0
         self.taylor_softmax = TaylorSoftmax(dim=1, n=n)

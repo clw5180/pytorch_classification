@@ -9,20 +9,13 @@ import torch.backends.cudnn as cudnn
 from torch.optim import lr_scheduler
 import torch.utils.data
 import torch.utils.data.distributed
-import torchvision.transforms as transforms
-import torchvision.datasets as datasets
 import numpy as np
-
-from PIL import ImageFile
-from config import DefaultConfigs
 from config import configs
 from models.model import get_model
-from sklearn.model_selection import train_test_split
 from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learning_rate, save_checkpoint, get_optimizer
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
-
 
 from utils.reader import CassavaTrainingDataset, albu_transforms_train
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
@@ -40,12 +33,11 @@ hour = 0.0
 minute = 0
 second = 0
 while 1:
-    if time.time() - t_s > (hour*60+minute)*60+second:
+    if time.time() - t_s > (hour * 60 + minute) * 60 + second:
         break
 
 ######## clw modify: items for training
 do_cutmix_prob = 0.0
-
 
 
 # for train fp16
@@ -105,6 +97,7 @@ def main():
     parser.add_argument("--step_milestones", default=configs.step_milestones, help="", nargs='+', type=int)
     args = parser.parse_args()
 
+    # 0.加载配置信息,启动日志记录
     # 如果用shell传入参数,则修改config
     configs.input_size = (512, 512) if "vit" not in args.model_name else (384, 384)
     configs.model_name = args.model_name
@@ -122,7 +115,7 @@ def main():
     start_epoch = configs.start_epoch
 
 
-    # Data loading code
+    # 1.加载数据集,设置采样方法
     train_data_df = get_files(configs.dataset+"/train/",   "train")  # DataFrame: ( image_nums, 2 )
     train_dataset = CassavaTrainingDataset(train_data_df, "train")
     val_data_df = get_files(configs.dataset+"/val/",   "val")
@@ -160,13 +153,11 @@ def main():
                                              pin_memory=True,
                                              drop_last=False)
 
-    # get model
+    # 2.加载模型, 设置优化器,学习率调整策略
     model = get_model()
     model.cuda()
-
-    # set lr scheduler methget_optimizerod
     optimizer = get_optimizer(model)
-    # set lr scheduler method
+
     if configs.lr_scheduler == "step":
         # scheduler = torch.optim.lr_scheduler.StepLR(optimizer, step_size=int(configs.epochs*0.3), gamma=0.1)   # clw note: 注意调用step_size这么多次学习率开始变化，如果每个epoch结束后执行scheduler.step(),那么就设置成比如epochs*0.3;
         #           最好不放在mini-batch下，否则还要设置成len(train_dataloader)*epoches*0.3
@@ -204,7 +195,7 @@ def main():
     else:
         logger.set_names(['Learning Rate', 'Train Loss', 'Train Acc.', 'Valid Acc.'])
 
-    ################################################### clw modify: loss function
+    # 4.设置损失函数
     if configs.loss_func == "LabelSmoothingLoss":
         criterion = LabelSmoothingLoss(configs.label_smooth_epsilon, configs.num_classes)  # now better than 0.05 and 0.1  TODO
     elif configs.loss_func == "LabelSmoothingLoss_clw":
@@ -227,7 +218,7 @@ def main():
 
     ###################################################
 
-    # Train and val
+    # 5.开始训练
     for epoch in range(start_epoch, configs.epochs):
         #print('\nEpoch: [%d | %d] LR: %f' % (epoch + 1, configs.epochs, optimizer.param_groups[0]['lr']))
         print('\nEpoch: [%d | %d] ' % (epoch + 1, configs.epochs))

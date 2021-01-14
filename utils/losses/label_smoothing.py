@@ -55,8 +55,14 @@ class LabelSmoothingLoss_clw(nn.Module):   # clw note: for mixup TODO
         target (LongTensor): batch_size
         """
         log_output = F.log_softmax(output, dim=1)
-        aaa = target == 1  # clw note: mixup的样本,不做label smooth; 其他的正常做；这里把没有mixup的筛选出来
+        aaa = target == 1  #  no cutmix, and belongs to that class_id     # clw note: mixup, cutmix的样本,不做label smooth; 其他的正常做；这里把没有mixup的筛选出来
         bbb = aaa.sum(1) == 1
+        ccc = ((target != 1) & (target != 0))  # cutmix, and belongs to that class_id
+        ddd = ccc.sum(1) == 2
+
         target[bbb, :] = self.smoothing_value
         target[aaa] = 1 - self.label_smoothing
+        target[ccc] -= 2.5 * self.smoothing_value     # - self.smoothing_value * 3 / 2 - self.smoothing_value
+        target[ddd, :] += self.smoothing_value
+
         return -torch.sum(target * log_output) / target.size(0)

@@ -1,7 +1,5 @@
 from torch.utils.data import Dataset
-from PIL import Image
 import cv2  # clw modify
-
 import albumentations as A
 from albumentations.pytorch import ToTensorV2
 import os
@@ -78,17 +76,17 @@ albu_transforms_train =  [
             ]
 
 
-# albu_transforms_train_cutmix =  [
-#                 A.Transpose(p=0.5),
-#                 A.HorizontalFlip(p=0.5),
-#                 A.VerticalFlip(p=0.5),
-#                 #A.RandomBrightness(limit=0.1, p=0.5),
-#                 #A.RandomContrast(limit=0.1, p=0.5),
-#                 A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.85),
-#                 A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.7),
-#                 A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
-#                 ToTensorV2(),
-#             ]
+albu_transforms_train_cutmix =  [
+                A.Transpose(p=0.5),
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                #A.RandomBrightness(limit=0.1, p=0.5),
+                #A.RandomContrast(limit=0.1, p=0.5),
+                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.85),
+                A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.7),
+                A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
+                ToTensorV2(),
+            ]
 
 albu_transforms_val = [
                 A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
@@ -102,7 +100,7 @@ albu_transforms_val = [
 
 
 train_aug = A.Compose(albu_transforms_train)
-#train_aug_cutmix = A.Compose(albu_transforms_train_cutmix)
+train_aug_cutmix = A.Compose(albu_transforms_train_cutmix)
 val_aug = A.Compose(albu_transforms_val)
 
 
@@ -145,9 +143,10 @@ class CassavaTrainingDataset(Dataset):
                 ### 2 RandomResizedCrop
                 #img = self.random_crop(image=img)['image']
                 ####
+
                 if random.random() < self.do_mixup_prob:
                     img, label = self.do_mixup(img, label, index)
-                elif random.random() < self.do_cutmix_prob:
+                if random.random() < self.do_cutmix_prob:
                     img, label = self.do_cutmix(img, label, index)
                 else:
                     img = train_aug(image=img)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
@@ -228,7 +227,8 @@ class CassavaTrainingDataset(Dataset):
         r_label = torch.tensor(r_label).long()
         r_label_one_hot = torch.zeros(configs.num_classes).scatter_(0, r_label, 1)
         label_new = label_one_hot * lam + r_label_one_hot * (1 - lam)
-        img_new = train_aug(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+        #img_new = train_aug(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
+        img_new = train_aug_cutmix(image=img_new)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
 
         return img_new, label_new
 

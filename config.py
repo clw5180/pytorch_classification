@@ -76,14 +76,14 @@ class DefaultConfigs(object):
     freeze_bn_epochs = 0
     accum_iter = 1
     drop_out_rate = 0.2 if "efficientnet" in model_name else 0.0
-    loss_func = "LabelSmoothingLoss_clw" #  "LabelSmoothingLoss"、 "LabelSmoothingLoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、 "TaylorCrossEntropyLoss", "SymmetricCrossEntropy"
+    loss_func = "LabelSmoothingLoss" #  "LabelSmoothingLoss"、 "LabelSmoothingLoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、 "TaylorCrossEntropyLoss", "SymmetricCrossEntropy"
     label_smooth_epsilon = 0.2
     gpu_id = "0"           # default gpu id
     fp16 = True          # use float16 to train the model
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
 
     do_mixup_in_dataset = 0
-    do_cutmix_in_dataset = 0.5   # in __get_items__()
+    do_cutmix_in_dataset = 0.5   # in __get_items__()  clw note:因为有可能是同一个类的, 相当于标签上看起来没有做cutmix一样...
     do_cutmix_in_batch = 0
 
 
