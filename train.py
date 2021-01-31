@@ -17,7 +17,7 @@ from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
 
-from utils.reader import CassavaTrainingDataset, albu_transforms_train
+from utils.reader import CassavaTrainingDataset, albu_transforms_train, albu_transforms_train_cutmix
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
@@ -62,6 +62,7 @@ def seed_everything(seed):
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
     torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.benchmark = True   # 可以大幅提升se_resnext系列的训练速度,50系列从15min提升到5min;但是不能复现结果了;
 seed_everything(configs.seed)
 
 # make dir for use
@@ -109,7 +110,9 @@ def main():
 
     logger = Logger(os.path.join(configs.log_dir, '%s_%s_log.txt' % (configs.model_name, time.strftime("%Y_%m_%d_%H_%M_%S", time.localtime()))), title=configs.model_name, resume=configs.resume)
     logger.info(str(configs))
-    logger.info(str(albu_transforms_train))
+    logger.info('albu_transforms_train: ' + str(albu_transforms_train))
+    if configs.do_cutmix_in_dataset>0 or configs.do_cutmix_in_batch > 0:
+        logger.info('albu_transforms_train_cutmix: ' + str(albu_transforms_train_cutmix))
 
     best_acc = 0  # best test accuracy
     start_epoch = configs.start_epoch
@@ -206,6 +209,8 @@ def main():
         criterion = TaylorCrossEntropyLoss()
     elif configs.loss_func == "SymmetricCrossEntropy":
         criterion = SymmetricCrossEntropy()
+    elif configs.loss_func == "BiTemperedLogisticLoss":
+        criterion = BiTemperedLogisticLoss(t1=0.3, t2=1.0, smoothing=configs.label_smooth_epsilon)
     elif configs.loss_func == "BCELoss":
         criterion = nn.BCEWithLogitsLoss()
     elif configs.loss_func == "FocalLoss":
@@ -229,39 +234,52 @@ def main():
             freeze_batchnorm_stats(model)
         #train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch)
         train_loss, train_acc, train_5 = train(train_loader, model, criterion, optimizer, epoch, scheduler=scheduler if configs.lr_scheduler == "cosine_change_per_batch" else None) # clw modify: 暂时默认cosine按mini-batch调整学习率
-        val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
-        tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
 
-        # adjust lr
-        if configs.lr_scheduler == "on_acc":
-            scheduler.step(val_acc)
-        elif configs.lr_scheduler == "on_loss":
-            scheduler.step(val_loss)
-        elif configs.lr_scheduler == "step":
+
+        if configs.evaluate:
+            val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
+            tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
+
+            # append logger file
+            lr_current = get_lr(optimizer)
+            logger.append([lr_current, train_loss, train_acc, val_acc])
+
+            # adjust lr
+            if configs.lr_scheduler == "on_acc":
+                scheduler.step(val_acc)
+            elif configs.lr_scheduler == "on_loss":
+                scheduler.step(val_loss)
+
+            print('train_loss:%f, train_acc:%f, train_5:%f, val_acc:%f, val_5:%f' % (train_loss, train_acc, train_5, val_acc, test_5))
+
+            # save model
+            is_best = val_acc > best_acc
+            best_acc = max(val_acc, best_acc)
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'train_acc': train_acc,
+                'acc': val_acc,
+                'best_acc': best_acc,
+                #'optimizer': optimizer.state_dict(),   # TODO, 可以不保存优化器
+            }, is_best)
+            print('Best acc:')
+            print(best_acc)
+        else:
+            save_checkpoint({
+                'epoch': epoch + 1,
+                'state_dict': model.state_dict(),
+                'train_acc': train_acc
+                #'optimizer': optimizer.state_dict(),   # TODO, 可以不保存优化器
+            }, False)
+
+        if configs.lr_scheduler == "step":
             scheduler.step()
         elif configs.lr_scheduler == "cosine_change_per_epoch":
             scheduler.step()
 
-        # append logger file
-        lr_current = get_lr(optimizer)
-        logger.append([lr_current,train_loss, train_acc, val_acc])
-        print('train_loss:%f, train_acc:%f, train_5:%f, val_acc:%f, val_5:%f' % (train_loss, train_acc, train_5, val_acc, test_5))
-
-        # save model
-        is_best = val_acc > best_acc
-        best_acc = max(val_acc, best_acc)
-        save_checkpoint({
-            'epoch': epoch + 1,
-            'state_dict': model.state_dict(),
-            'train_acc': train_acc,
-            'acc': val_acc,
-            'best_acc': best_acc,
-            #'optimizer': optimizer.state_dict(),   # TODO, 可以不保存优化器
-        }, is_best)
-
     logger.close()
-    print('Best acc:')
-    print(best_acc)
+
 
 
 def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):

@@ -25,13 +25,13 @@ albu_transforms_train =  [
                 # A.RandomResizedCrop(600, 800, scale=(0.6, 1.0), ratio=(0.6, 1.666666), p=0.5)
 
                 ### now top
-                A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.5),
-                A.HorizontalFlip(p=0.5),
-                A.VerticalFlip(p=0.5),
-                A.Transpose(p=0.5),
-                A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
-                A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
-                ToTensorV2(),
+                # A.ShiftScaleRotate(shift_limit=0, scale_limit=0.05, rotate_limit=20, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.5),
+                # A.HorizontalFlip(p=0.5),
+                # A.VerticalFlip(p=0.5),
+                # A.Transpose(p=0.5),
+                # A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.3),
+                # A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
+                # ToTensorV2(),
 
                 ### new try
                 # A.Transpose(p=0.5),
@@ -46,19 +46,22 @@ albu_transforms_train =  [
                 # ToTensorV2(),
 
                 ######### HolyCHen Vit !!!
-                # A.RandomResizedCrop(height=input_size[0], width=input_size[1], p=0.5),
-                # A.Transpose(p=0.5),
-                # A.HorizontalFlip(p=0.5),
-                # A.VerticalFlip(p=0.5),
-                # A.RandomRotate90(p=0.5),
-                # A.ShiftScaleRotate(p=0.5),
-                # A.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=0.5),
-                # A.RandomBrightnessContrast(brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=0.5),
-                # A.CenterCrop(input_size[0], input_size[1]),
-                # A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
-                # A.CoarseDropout(p=0.5),
-                # A.Cutout(p=0.5),
-                # ToTensorV2(),
+                A.Resize(height=600, width=800),
+                A.RandomResizedCrop(height=configs.input_size[1], width=configs.input_size[0], scale=(0.8, 1.0), p=1),
+                A.CenterCrop(height=configs.input_size[1], width=configs.input_size[0]),
+                A.Transpose(p=0.5),
+                A.HorizontalFlip(p=0.5),
+                A.VerticalFlip(p=0.5),
+                A.RandomRotate90(p=0.5),
+                A.ShiftScaleRotate(p=0.5),
+                A.OneOf([
+                    A.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=1),
+                    A.RandomBrightnessContrast(brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=1)], p = 0.7
+                ),
+                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+                A.CoarseDropout(p=0.5, max_height=32, max_width=32),
+                #A.Cutout(p=0.5),
+                ToTensorV2(),
 
                 ### top100
                 # A.ShiftScaleRotate(shift_limit=0.0625, scale_limit=0.1, rotate_limit=45, interpolation=cv2.INTER_LINEAR,
@@ -75,20 +78,37 @@ albu_transforms_train =  [
                 # ToTensorV2(),
             ]
 
-
 albu_transforms_train_cutmix =  [
                 A.Transpose(p=0.5),
                 A.HorizontalFlip(p=0.5),
                 A.VerticalFlip(p=0.5),
-                #A.RandomBrightness(limit=0.1, p=0.5),
-                #A.RandomContrast(limit=0.1, p=0.5),
-                A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.85),
-                A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.7),
-                A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
+                A.RandomRotate90(p=0.5),
+                #A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.85),
+                A.ShiftScaleRotate(p=0.5),
+                A.OneOf([
+                    A.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=1),
+                    A.RandomBrightnessContrast(brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=1)], p = 0.7
+                ),
+                A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+                A.CoarseDropout(p=0.5, max_height=32, max_width=32),
+                #A.Cutout(p=0.5),
                 ToTensorV2(),
             ]
 
+# albu_transforms_train_cutmix =  [
+#                 A.Transpose(p=0.5),
+#                 A.HorizontalFlip(p=0.5),
+#                 A.VerticalFlip(p=0.5),
+#                 #A.RandomBrightness(limit=0.1, p=0.5),
+#                 #A.RandomContrast(limit=0.1, p=0.5),
+#                 A.ShiftScaleRotate(shift_limit=0.1, scale_limit=0.1, rotate_limit=15, interpolation=cv2.INTER_LINEAR, border_mode=0, p=0.85),
+#                 A.CoarseDropout(max_holes=8, max_height=16, max_width=16, p=0.7),
+#                 A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
+#                 ToTensorV2(),
+#             ]
+
 albu_transforms_val = [
+                A.Resize(height=configs.input_size[1], width=configs.input_size[0]),
                 A.Normalize(),   #A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
                 ToTensorV2(),
                 ######## HolyCHen Vit !!!
@@ -111,7 +131,7 @@ class CassavaTrainingDataset(Dataset):
         self.label_list = label_list
         self.mode = mode
         self.input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
-        self.random_crop = A.Compose( [A.RandomResizedCrop(self.input_size[0], self.input_size[1], scale=(0.8, 1.0), ratio=(0.75, 1.333333))])
+        self.random_crop = A.Compose( [A.RandomResizedCrop(self.input_size[1], self.input_size[0], scale=(0.8, 1.0), ratio=(0.75, 1.333333))])
         imgs = []
         if self.mode == "test":
             for index,row in label_list.iterrows():
@@ -138,12 +158,6 @@ class CassavaTrainingDataset(Dataset):
             img = img[:, :, ::-1]
 
             if self.mode == "train":
-                ### 1 resize
-                img = cv2.resize(img, self.input_size)
-                ### 2 RandomResizedCrop
-                #img = self.random_crop(image=img)['image']
-                ####
-
                 if random.random() < self.do_mixup_prob:
                     img, label = self.do_mixup(img, label, index)
                 if random.random() < self.do_cutmix_prob:
@@ -208,10 +222,8 @@ class CassavaTrainingDataset(Dataset):
         r_img = cv2.imread(os.path.join(configs.dataset + "/train/", r_filename))
         r_img = r_img[:, :, ::-1]
 
-        ### 1 resize
-        r_img = cv2.resize(r_img, self.input_size)
-        ### 2 RandomResizedCrop
-        #r_img = self.random_crop(image=r_img)['image']
+        img = self.random_crop(image=img)['image']
+        r_img = self.random_crop(image=r_img)['image']
         ####
         img_h, img_w = r_img.shape[:2]
 
@@ -237,7 +249,7 @@ class CassavaTrainingDataset(Dataset):
 # Val Dataset
 # ====================================================
 
-class CassavaValDataset(Dataset):
+class CassavaValDataset(Dataset):  # evaluate才使用,训练不用
     # define dataset
     def __init__(self, label_list):
         super(CassavaValDataset,self).__init__()
@@ -251,6 +263,7 @@ class CassavaValDataset(Dataset):
 
         self.val_aug0 = A.Compose([
             A.Resize(self.input_size[0], self.input_size[1], p=1.0),
+
             A.Normalize(),  # A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
             ToTensorV2()
         ])
@@ -298,14 +311,17 @@ class CassavaValDataset(Dataset):
         img = img[:, :, ::-1]
 
         ########################################
+        # img0_tensor = self.val_aug0(image=img)['image']
+        # img1_tensor = self.val_aug1(image=img)['image']
+        # img2_tensor = self.val_aug2(image=img)['image']
+        # img3_tensor = self.val_aug3(image=img)['image']
+        # img4_tensor = self.val_aug4(image=img)['image']  # (c, h, w)
+        # img_tensor = torch.cat((img0_tensor, img1_tensor, img2_tensor, img3_tensor, img4_tensor), 2)
+        # return img_tensor, label
+        #####################################
+
         img0_tensor = self.val_aug0(image=img)['image']
-        img1_tensor = self.val_aug1(image=img)['image']
-        img2_tensor = self.val_aug2(image=img)['image']
-        img3_tensor = self.val_aug3(image=img)['image']
-        img4_tensor = self.val_aug4(image=img)['image']  # (c, h, w)
-        img_tensor = torch.cat((img0_tensor, img1_tensor, img2_tensor, img3_tensor, img4_tensor), 2)
-        ########################################
-        return img_tensor, label
+        return img0_tensor, label
 
 
 # ====================================================

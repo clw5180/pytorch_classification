@@ -22,6 +22,9 @@ import albumentations as A
 from albumentations.pytorch import ToTensorV2
 from tqdm import tqdm
 
+from utils.losses import BiTemperedLogisticLoss
+import pretrainedmodels
+
 def seed_everything(seed):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
@@ -36,34 +39,43 @@ class Config:
     seed = 42
     #data_dir = '../input/cassava-leaf-disease-classification/'
     data_dir = '/home/user/dataset/kaggle_cassava_merge/'
-    #train_data_dir = data_dir + 'train_images/'
     train_data_dir = data_dir + 'train/'
-    #train_csv_path = data_dir + 'train.csv'
+    #train_csv_path = data_dir + 'merged.csv'
     train_csv_path = data_dir + '2020.csv'
-    arch = 'vit_base_patch16_384'  ## model name
+    #arch = 'vit_base_patch16_384'  ## model name
+    #arch = 'tf_efficientnet_b4_ns'
+    #arch = 'tf_efficientnet_b5_ns'
+    arch = 'se_resnext50_32x4d'  # why is so fast??
     device = 'cuda'
-    #debug = True  ##
-    debug = False
+    debug = False  ## clw modify
 
-    image_size = 384
-    train_batch_size = 16
+    #image_size = 384
+    image_size = 512
+    #train_batch_size = 16
+    train_batch_size = 32
     val_batch_size = 32
-    epochs = 10  ## total train epochs
-    freeze_bn_epochs = 5  ## freeze bn weights before epochs
+    epochs = 15  ## total train epochs
+    #freeze_bn_epochs = 5  ## freeze bn weights before epochs
+    freeze_bn_epochs = 0  # clw modify
 
-    lr = 1e-4  ## init learning rate
-    min_lr = 1e-6  ## min learning rate
+    #lr = 1e-4  ## init learning rate
+    lr = 1e-2
+
     weight_decay = 1e-6
     num_workers = 4
     num_splits = 5  ## numbers splits
     num_classes = 5  ## numbers classes
+
+    # min_lr = 1e-6  ## min learning rate
     T_0 = 10
     T_mult = 1
-    accum_iter = 2
+    #accum_iter = 2
+    accum_iter = 1  # clw modify
     verbose_step = 1
 
-    criterion = 'LabelSmoothingCrossEntropy'  ## CrossEntropy, LabelSmoothingCrossEntropy
-    label_smoothing = 0.1
+    #criterion = 'LabelSmoothingCrossEntropy'  ## CrossEntropy, LabelSmoothingCrossEntropy
+    criterion = 'bitempered'  ## CrossEntropy, LabelSmoothingCrossEntropy
+    label_smoothing = 0.3
 
     train_id = [0, 1, 2, 3, 4]
 
@@ -107,10 +119,23 @@ class CassavaValDataset(Dataset):
 class CassavaClassifier(nn.Module):
     def __init__(self, model_arch, num_classes, pretrained=False):
         super().__init__()
-        self.model = timm.create_model(model_arch, pretrained=pretrained)
+
         ### vit
-        num_features = self.model.head.in_features
-        self.model.head = nn.Linear(num_features, num_classes)
+        ###self.model = timm.create_model(model_arch, pretrained=pretrained)
+        #num_features = self.model.head.in_features
+        #self.model.head = nn.Linear(num_features, num_classes)
+
+        ### efficientnet
+        if 'efficient' in model_arch:
+            self.model = timm.create_model(model_arch, pretrained=pretrained)  # drop_path_rate=0.2~0.5
+            self.model.classifier = nn.Linear(self.model.classifier.in_features, num_classes)
+        else:
+            # self.model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
+            # self.model.last_linear = nn.Linear(2048, num_classes)
+            # self.model.avg_pool = nn.AdaptiveAvgPool2d(1)
+            self.model = timm.create_model('seresnext50_32x4d', pretrained=True)
+            n_features = self.model.fc.in_features
+            self.model.fc = nn.Linear(n_features, num_classes)
 
         '''
         self.model.classifier = nn.Sequential(
@@ -126,26 +151,49 @@ class CassavaClassifier(nn.Module):
 
 def get_train_transforms(CFG):
     return A.Compose([
-            A.RandomResizedCrop(height=CFG.image_size, width=CFG.image_size, p=0.5),
+            # A.Resize(height=600, width=800),  # clw modify
+            # A.RandomResizedCrop(height=CFG.image_size, width=CFG.image_size, p=0.5),
+            # A.Transpose(p=0.5),
+            # A.HorizontalFlip(p=0.5),
+            # A.VerticalFlip(p=0.5),
+            # A.RandomRotate90(p=0.5),
+            # A.ShiftScaleRotate(p=0.5),
+            # A.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=0.5),
+            # A.RandomBrightnessContrast(brightness_limit=(-0.1,0.1), contrast_limit=(-0.1, 0.1), p=0.5),
+            # A.CenterCrop(CFG.image_size, CFG.image_size),
+            # A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+            # A.CoarseDropout(p=0.5),
+            # A.Cutout(p=0.5),
+            # ToTensorV2(),
+
+            A.Resize(height=600, width=800),
+            A.RandomResizedCrop(height=512, width=512, scale=(0.8, 1.0), p=1),
+            A.CenterCrop(height=512, width=512),
             A.Transpose(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
             A.RandomRotate90(p=0.5),
             A.ShiftScaleRotate(p=0.5),
-            A.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=0.5),
-            A.RandomBrightnessContrast(brightness_limit=(-0.1,0.1), contrast_limit=(-0.1, 0.1), p=0.5),
-            A.CenterCrop(CFG.image_size, CFG.image_size),
+            A.OneOf([
+                A.HueSaturationValue(hue_shift_limit=0.2, sat_shift_limit=0.2, val_shift_limit=0.2, p=1),
+                A.RandomBrightnessContrast(brightness_limit=(-0.1, 0.1), contrast_limit=(-0.1, 0.1), p=1)], p=0.7
+            ),
             A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
-            A.CoarseDropout(p=0.5),
-            A.Cutout(p=0.5),
+            A.CoarseDropout(p=0.5, max_height=32, max_width=32),
+            # A.Cutout(p=0.5),
             ToTensorV2(),
         ],p=1.0)
 
 def get_val_transforms(cfg):
     return A.Compose([
-            A.CenterCrop(CFG.image_size, CFG.image_size, p=0.5),
-            A.Resize(CFG.image_size, CFG.image_size),
-            A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+            # A.Resize(height=600, width=800),  # clw modify
+            # A.CenterCrop(CFG.image_size, CFG.image_size, p=0.5),
+            # A.Resize(CFG.image_size, CFG.image_size),
+            # A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
+            # ToTensorV2(),
+
+            A.Resize(height=512, width=512),
+            A.Normalize(),  # A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
             ToTensorV2(),
         ],p=1.0)
 
@@ -187,6 +235,7 @@ def load_dataloader(CFG, df, train_idx, val_idx):
     return train_loader, val_loader
 
 
+from utils.utils import rand_bbox
 def train_one_epoch(epoch, model, loss_fn, optimizer, train_loader, device, scheduler=None, schd_batch_update=False):
     model.train()
     lr = optimizer.state_dict()['param_groups'][0]['lr']
@@ -198,8 +247,26 @@ def train_one_epoch(epoch, model, loss_fn, optimizer, train_loader, device, sche
         targets = targets.to(device).long()
 
         with autocast():
-            preds = model(images)
-            loss = loss_fn(preds, targets)
+            if np.random.rand(1) < 0.5:
+                # generate mixed sample
+                lam = np.random.beta(1.0, 1.0)
+                rand_index = torch.randperm(images.size()[0]).cuda()
+                target_a = targets
+                target_b = targets[rand_index]
+                bbx1, bby1, bbx2, bby2 = rand_bbox(images.size(), lam)
+                images[:, :, bbx1:bbx2, bby1:bby2] = images[rand_index, :, bbx1:bbx2, bby1:bby2]
+                # adjust lambda to exactly match pixel ratio
+                lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (images.size()[-1] * images.size()[-2]))
+                # compute output
+                preds = model(images)
+                # loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
+                loss = loss_fn(preds, target_a) * lam + loss_fn(preds, target_b) * (1. - lam)  #### no label smooth when using cutmix
+            else:
+                preds = model(images)
+                loss = loss_fn(preds, targets)
+            ###### clw modify
+            #preds = model(images)
+            #loss = loss_fn(preds, targets)
 
             scaler.scale(loss).backward()
             if running_loss is None:
@@ -261,15 +328,15 @@ def valid_one_epoch(epoch, model, loss_fn, val_loader, device, scheduler=None, s
 
     return accuracy
 
-
+################ freeze bn
 ################ freeze bn
 def freeze_batchnorm_stats(net):
     try:
         for m in net.modules():
-            if isinstance(m,nn.BatchNorm2d):
+            if isinstance(m,nn.BatchNorm2d) or isinstance(m,nn.LayerNorm):
                 m.eval()
     except ValueError:
-        print('error with batchnorm2d')
+        print('error with batchnorm2d or layernorm')
         return
 
 
@@ -325,23 +392,33 @@ if __name__ == '__main__':
         model = CassavaClassifier(CFG.arch, train.label.nunique(), pretrained=True).to(device)
 
         scaler = GradScaler()
-        optimizer = torch.optim.Adam(
+        # optimizer = torch.optim.Adam(
+        #     model.parameters(),
+        #     lr=CFG.lr,
+        #     weight_decay=CFG.weight_decay)
+        optimizer = torch.optim.SGD(
             model.parameters(),
             lr=CFG.lr,
-            weight_decay=CFG.weight_decay)
+            momentum=0.9,
+            weight_decay=CFG.weight_decay,
+            nesterov=True)
 
-        scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
-            optimizer,
-            T_0=CFG.T_0,
-            T_mult=CFG.T_mult,
-            eta_min=CFG.min_lr,
-            last_epoch=-1)
+        # scheduler = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(
+        #     optimizer,
+        #     T_0=CFG.T_0,
+        #     T_mult=CFG.T_mult,
+        #     eta_min=CFG.min_lr,
+        #     last_epoch=-1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[9, 12, 14], gamma=0.1)
+
 
         ########
         # criterion
         #######
         if CFG.criterion == 'LabelSmoothingCrossEntropy':  #### label smoothing cross entropy
             loss_train = LabelSmoothingCrossEntropy(smoothing=CFG.label_smoothing)
+        elif CFG.criterion == 'bitempered':
+            loss_train = BiTemperedLogisticLoss(t1=0.3, t2=1.0, smoothing=CFG.label_smoothing)
         else:
             loss_train = nn.CrossEntropyLoss().to(device)
         loss_val = nn.CrossEntropyLoss().to(device)

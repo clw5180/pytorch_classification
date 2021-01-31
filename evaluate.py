@@ -114,11 +114,14 @@ def validate_and_analysis(val_loader, model):
             # img2_tensor = img_tensor[:, :, :, 768:1152]
             # img3_tensor = img_tensor[:, :, :, 1152:1536]
             # img4_tensor = img_tensor[:, :, :, 1536:1920]
-            img0_tensor = inputs[:, :, :, :512]
-            img1_tensor = inputs[:, :, :, 512:1024]
-            img2_tensor = inputs[:, :, :, 1024:1536]
-            img3_tensor = inputs[:, :, :, 1536:2048]
-            img4_tensor = inputs[:, :, :, 2048:2560]
+            # img0_tensor = inputs[:, :, :, :512]
+            # img1_tensor = inputs[:, :, :, 512:1024]
+            # img2_tensor = inputs[:, :, :, 1024:1536]
+            # img3_tensor = inputs[:, :, :, 1536:2048]
+            # img4_tensor = inputs[:, :, :, 2048:2560]
+
+            img0_tensor = inputs
+
 
             p = []
             ####
@@ -171,7 +174,8 @@ def validate_and_analysis(val_loader, model):
 if __name__ == "__main__":
     model_root_path = '/home/user/pytorch_classification/checkpoints'
     #model_file_name = 'efficientnet-b3_2021_01_11_16_03_30-checkpoint.pth.tar'
-    model_file_name = 'efficientnet-b3_2021_01_12_00_06_11-best_model.pth.tar'
+    #model_file_name = 'efficientnet-b3_2021_01_12_00_06_11-best_model.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_01_30_22_17_34-best_model.pth.tar'
 
     my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
     model = get_model_no_pretrained(model_file_name, my_state_dict)

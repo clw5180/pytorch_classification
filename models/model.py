@@ -92,10 +92,14 @@ def get_model():
 
     elif configs.model_name.startswith("se_resnext50_32x4d"):
         #model = se_resnext50_32x4d(configs.num_classes)    # 自定义se_resnext50_32x4d, result not good
-        ####
+
         model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
         model.last_linear=nn.Linear(2048, configs.num_classes)
         model.avg_pool = nn.AdaptiveAvgPool2d(1)  # clw note: 在senet.py中，默认是self.avg_pool = nn.AvgPool2d(7, stride=1)，这里的7是根据imagenet输入224来的，所以要改一下，否则输出就不是 32,2048,1,1了
+
+        # model = timm.create_model('seresnext50_32x4d', pretrained=True)   # not good
+        # n_features = model.fc.in_features
+        # model.fc = nn.Linear(n_features, configs.num_classes)
 
     elif configs.model_name.startswith("se_resnext101_32x4d"):  # TODO: pretrainedmodels.se_resnext50_32x4d()
         model = pretrainedmodels.se_resnext101_32x4d(pretrained="imagenet")
