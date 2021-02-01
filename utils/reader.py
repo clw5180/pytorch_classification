@@ -262,8 +262,8 @@ class CassavaValDataset(Dataset):  # evaluate才使用,训练不用
             self.imgs = imgs
 
         self.val_aug0 = A.Compose([
-            A.Resize(self.input_size[0], self.input_size[1], p=1.0),
-
+            #A.Resize(self.input_size[0], self.input_size[1], p=1.0),
+            A.RandomResizedCrop(self.input_size[0], self.input_size[1], scale=(0.8, 1.0), ratio=(0.75, 1.333333), p=1.0),
             A.Normalize(),  # A.Normalize(mean=(0.430, 0.497, 0.313), std=(0.238, 0.240, 0.228)),
             ToTensorV2()
         ])

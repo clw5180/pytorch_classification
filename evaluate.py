@@ -172,12 +172,23 @@ def validate_and_analysis(val_loader, model):
 
 
 if __name__ == "__main__":
-    model_root_path = '/home/user/pytorch_classification/checkpoints'
+
     #model_file_name = 'efficientnet-b3_2021_01_11_16_03_30-checkpoint.pth.tar'
     #model_file_name = 'efficientnet-b3_2021_01_12_00_06_11-best_model.pth.tar'
-    model_file_name = 'efficientnet-b3_2021_01_30_22_17_34-best_model.pth.tar'
+    #model_file_name = 'efficientnet-b3_2021_01_30_22_17_34-best_model.pth.tar'
+    #model_file_name = 'efficientnet-b3_2021_01_30_22_17_34-checkpoint.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_01_31_21_53_10-best_model.pth.tar'
 
-    my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
+    if "ckpt" in model_file_name:  # from train_holychen.py
+        model_root_path = '/home/user/pytorch_classification'
+        state_dict = torch.load(os.path.join(model_root_path, model_file_name))
+        my_state_dict = {}
+        for k, v in state_dict.items():
+            my_state_dict[k[6:]] = v
+    else:
+        model_root_path = '/home/user/pytorch_classification/checkpoints'
+        my_state_dict = torch.load(os.path.join(model_root_path, model_file_name))['state_dict']
+
     model = get_model_no_pretrained(model_file_name, my_state_dict)
     model.cuda()
 

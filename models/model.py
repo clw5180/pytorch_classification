@@ -130,8 +130,6 @@ def get_model():
         # model = timm.create_model("resnet50", pretrained=True)
         # model.fc = nn.Linear(model.fc.in_features, configs.num_classes)
 
-
-
     elif configs.model_name.startswith("efficientnet-b0"):
         model = timm.create_model('tf_efficientnet_b0_ns', pretrained=True)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)

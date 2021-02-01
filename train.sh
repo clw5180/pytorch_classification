@@ -1,11 +1,19 @@
-
-
-
 # 20210131
-python train.py --model_name efficientnet-b3 --epochs 20 --lr 0.1 --accum_iter 1 --step_milestones 12 16 19
-
+python train_holychen.py --model_arch vit_base_patch16_384 --lr 0.01 --image_size 384  ## have bug!!
 wait
-python train_holychen.py
+python train_holychen.py --model_arch efficientnet-b3 --lr 0.1
+wait
+python train_holychen.py --model_arch se_resnext50_pretrainedmodels --lr 0.02
+wait
+python train_holychen.py --model_arch se_resnext50_timm --lr 0.02
+wait
+
+
+#python train.py --model_name efficientnet-b3 --epochs 20 --lr 0.1 --accum_iter 1 --step_milestones 12 16 19
+#python train.py --model_name se_resnext50_32x4d --epochs 20 --lr 0.02 --accum_iter 1 --step_milestones 12 16 19
+#python train.py --model_name vit_base_patch16_384 --epochs 20 --lr 0.01 --accum_iter 1 --step_milestones 12 16 19
+
+
 
 # 20210110
 #python train_holychen.py

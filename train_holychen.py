@@ -25,13 +25,16 @@ from tqdm import tqdm
 from utils.losses import BiTemperedLogisticLoss
 import pretrainedmodels
 
+import argparse
+
+
 def seed_everything(seed):
     random.seed(seed)
     os.environ['PYTHONHASHSEED'] = str(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)
     torch.cuda.manual_seed(seed)
-    torch.backends.cudnn.deterministic = True
+    torch.backends.cudnn.deterministic = False
     torch.backends.cudnn.benchmark = True
 
 
@@ -40,12 +43,13 @@ class Config:
     #data_dir = '../input/cassava-leaf-disease-classification/'
     data_dir = '/home/user/dataset/kaggle_cassava_merge/'
     train_data_dir = data_dir + 'train/'
-    #train_csv_path = data_dir + 'merged.csv'
-    train_csv_path = data_dir + '2020.csv'
+    train_csv_path = data_dir + 'merged.csv'
+    #train_csv_path = data_dir + '2020.csv'
     #arch = 'vit_base_patch16_384'  ## model name
-    #arch = 'tf_efficientnet_b4_ns'
-    #arch = 'tf_efficientnet_b5_ns'
-    arch = 'se_resnext50_32x4d'  # why is so fast??
+    arch = 'efficientnet-b3'
+    #arch = 'efficientnet-b4'
+    #arch = 'efficientnet-b5'
+    #arch = 'se_resnext50_32x4d_timm'
     device = 'cuda'
     debug = False  ## clw modify
 
@@ -54,12 +58,13 @@ class Config:
     #train_batch_size = 16
     train_batch_size = 32
     val_batch_size = 32
-    epochs = 15  ## total train epochs
+    epochs = 12  ## total train epochs
+    milestones = [7, 11]
     #freeze_bn_epochs = 5  ## freeze bn weights before epochs
     freeze_bn_epochs = 0  # clw modify
 
     #lr = 1e-4  ## init learning rate
-    lr = 1e-2
+    lr = 1e-1
 
     weight_decay = 1e-6
     num_workers = 4
@@ -73,8 +78,8 @@ class Config:
     accum_iter = 1  # clw modify
     verbose_step = 1
 
-    #criterion = 'LabelSmoothingCrossEntropy'  ## CrossEntropy, LabelSmoothingCrossEntropy
-    criterion = 'bitempered'  ## CrossEntropy, LabelSmoothingCrossEntropy
+    #criterion = 'LabelSmoothingCrossEntropy'
+    criterion = 'bitempered'
     label_smoothing = 0.3
 
     train_id = [0, 1, 2, 3, 4]
@@ -85,7 +90,7 @@ def load_image(image_path):
     img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
     return img
 
-class CassavaValDataset(Dataset):
+class CassavaDataset(Dataset):
     def __init__(self, data_dir, df, transforms=None, output_label=True):
         self.data_dir = data_dir
         self.df = df
@@ -126,16 +131,24 @@ class CassavaClassifier(nn.Module):
         #self.model.head = nn.Linear(num_features, num_classes)
 
         ### efficientnet
-        if 'efficient' in model_arch:
-            self.model = timm.create_model(model_arch, pretrained=pretrained)  # drop_path_rate=0.2~0.5
+        if "efficientnet-b3" in model_arch:
+            self.model = timm.create_model('tf_efficientnet_b3_ns', pretrained=True)
             self.model.classifier = nn.Linear(self.model.classifier.in_features, num_classes)
-        else:
-            # self.model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
-            # self.model.last_linear = nn.Linear(2048, num_classes)
-            # self.model.avg_pool = nn.AdaptiveAvgPool2d(1)
+        elif "efficientnet-b4" in model_arch:
+            self.model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)
+            self.model.classifier = nn.Linear(self.model.classifier.in_features, num_classes)
+        elif 'se_resnext50_pretrainedmodels' in model_arch:
+            self.model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
+            self.model.last_linear = nn.Linear(2048, num_classes)
+            self.model.avg_pool = nn.AdaptiveAvgPool2d(1)
+        elif 'se_resnext50_timm' in model_arch:
             self.model = timm.create_model('seresnext50_32x4d', pretrained=True)
             n_features = self.model.fc.in_features
             self.model.fc = nn.Linear(n_features, num_classes)
+        elif 'vit_base_patch16_384' in model_arch:
+            self.model = timm.create_model('vit_base_patch16_384', pretrained=True,
+                                      num_classes=num_classes)  # , drop_rate=0.1)
+            self.model.head = nn.Linear(self.model.head.in_features, num_classes)
 
         '''
         self.model.classifier = nn.Sequential(
@@ -167,8 +180,8 @@ def get_train_transforms(CFG):
             # ToTensorV2(),
 
             A.Resize(height=600, width=800),
-            A.RandomResizedCrop(height=512, width=512, scale=(0.8, 1.0), p=1),
-            A.CenterCrop(height=512, width=512),
+            A.RandomResizedCrop(height=CFG.image_size, width=CFG.image_size, scale=(0.8, 1.0), p=1),
+            A.CenterCrop(height=CFG.image_size, width=CFG.image_size),
             A.Transpose(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),
@@ -184,15 +197,15 @@ def get_train_transforms(CFG):
             ToTensorV2(),
         ],p=1.0)
 
-def get_val_transforms(cfg):
+def get_val_transforms(CFG):
     return A.Compose([
             # A.Resize(height=600, width=800),  # clw modify
             # A.CenterCrop(CFG.image_size, CFG.image_size, p=0.5),
             # A.Resize(CFG.image_size, CFG.image_size),
             # A.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225], max_pixel_value=255.0, p=1.0),
             # ToTensorV2(),
-
-            A.Resize(height=512, width=512),
+            A.Resize(height=CFG.image_size, width=CFG.image_size),
+            #A.RandomResizedCrop(height=CFG.image_size, width=CFG.image_size, scale=(0.8, 1.0), p=1),
             A.Normalize(),  # A.Normalize(mean=(0.43032, 0.49673, 0.31342), std=(0.237595, 0.240453, 0.228265)),
             ToTensorV2(),
         ],p=1.0)
@@ -202,13 +215,13 @@ def load_dataloader(CFG, df, train_idx, val_idx):
     df_train = df.loc[train_idx, :].reset_index(drop=True)
     df_val = df.loc[val_idx, :].reset_index(drop=True)
 
-    train_dataset = CassavaValDataset(
+    train_dataset = CassavaDataset(
         CFG.train_data_dir,
         df_train,
         transforms=get_train_transforms(CFG),
         output_label=True)
 
-    val_dataset = CassavaValDataset(
+    val_dataset = CassavaDataset(
         CFG.train_data_dir,
         df_val,
         transforms=get_val_transforms(CFG),
@@ -229,7 +242,7 @@ def load_dataloader(CFG, df, train_idx, val_idx):
         batch_size=CFG.val_batch_size,
         num_workers=CFG.num_workers,
         shuffle=False,
-        pin_memory=False,
+        pin_memory=True,
     )
 
     return train_loader, val_loader
@@ -247,9 +260,10 @@ def train_one_epoch(epoch, model, loss_fn, optimizer, train_loader, device, sche
         targets = targets.to(device).long()
 
         with autocast():
-            if np.random.rand(1) < 0.5:
+            if np.random.rand() < 0.5:
                 # generate mixed sample
-                lam = np.random.beta(1.0, 1.0)
+                #lam = np.random.beta(1.0, 1.0)
+                lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
                 rand_index = torch.randperm(images.size()[0]).cuda()
                 target_a = targets
                 target_b = targets[rand_index]
@@ -328,7 +342,7 @@ def valid_one_epoch(epoch, model, loss_fn, val_loader, device, scheduler=None, s
 
     return accuracy
 
-################ freeze bn
+
 ################ freeze bn
 def freeze_batchnorm_stats(net):
     try:
@@ -365,6 +379,20 @@ class LabelSmoothingCrossEntropy(nn.Module):
 
 if __name__ == '__main__':
     CFG = Config
+    parser = argparse.ArgumentParser(description="PyTorch Template Training")
+    parser.add_argument("--model_arch", default=CFG.arch, help="", type=str)
+    parser.add_argument("--lr", default=CFG.lr, help="", type=float)
+    parser.add_argument("--image_size", default=CFG.image_size, help="", type=int)
+    args = parser.parse_args()
+
+    CFG.arch = args.model_arch
+    CFG.lr = args.lr
+    CFG.image_size = args.image_size
+
+    print('model_arch:', CFG.arch)
+    print('lr:', CFG.lr)
+    print('image_size:', CFG.image_size)
+
     train = pd.read_csv(CFG.train_csv_path)
 
     if CFG.debug:
@@ -409,7 +437,7 @@ if __name__ == '__main__':
         #     T_mult=CFG.T_mult,
         #     eta_min=CFG.min_lr,
         #     last_epoch=-1)
-        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=[9, 12, 14], gamma=0.1)
+        scheduler = torch.optim.lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
 
 
         ########

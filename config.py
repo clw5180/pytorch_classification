@@ -44,15 +44,18 @@ class DefaultConfigs(object):
                                     # tf_efficientnet_l2_ns_475
     sampler = "RandomSampler"   # "RandomSampler"、"WeightedSampler"、"imbalancedSampler"（和WeightedSampler基本一样）
 
-    step_milestones = [7, 10, 12]  # 第几个epoch开始下降,比如设置5,则前5个epoch保持lr 0.01,第6个开始下降为0.001
+
+    optim = "sgd"  # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     #step_milestones = [9, 12, 14]
     #step_milestones = [12, 16, 19]
     #step_milestones = [10, 21, 27]
     #step_milestones = [7, 12, 17]
+    step_milestones = [7, 10, 12]  # 第几个epoch开始下降,比如设置5,则前5个epoch保持lr 0.01,第6个开始下降为0.001
+    epochs = 13
     step_gamma = 0.1
 
 
-    optim = "sgd"    # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
+
     if optim == "adam":  # clw note: not stable
         lr_scheduler = "cosine_change_per_epoch"  # lr scheduler method: "step", "cosine_change_per_epoch", "cosine_change_per_batch", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
         lr = 1e-4  # adam: 1e-4, 3e-4, 5e-4
@@ -66,7 +69,6 @@ class DefaultConfigs(object):
             lr = 2e-2
         else:
             lr = 1e-1
-        epochs = 13
     else:
         lr = 1e-3
         lr_scheduler = None
