@@ -24,8 +24,8 @@ from utils.sampler.utils import make_weights_for_balanced_classes
 from utils.utils import rand_bbox, freeze_batchnorm_stats
 from tqdm import tqdm
 from torchvision.utils import make_grid
-from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
-tb_logger = SummaryWriter()
+#from tensorboardX import SummaryWriter   # clw modify: it's quicker than   #from torch.utils.tensorboard import SummaryWriter
+#tb_logger = SummaryWriter()
 import argparse
 
 t_s = time.time()
@@ -43,11 +43,12 @@ do_cutmix_prob = 0.0
 # for train fp16
 if configs.fp16:
     try:
-        import apex
-        from apex.parallel import DistributedDataParallel as DDP
-        from apex.fp16_utils import *
-        from apex import amp, optimizers
-        from apex.multi_tensor_apply import multi_tensor_applier
+        from torch.cuda import amp
+        # import apex
+        # from apex.parallel import DistributedDataParallel as DDP
+        # from apex.fp16_utils import *
+        # from apex import amp, optimizers
+        # from apex.multi_tensor_apply import multi_tensor_applier
     except ImportError:
         raise ImportError("Please install apex from https://www.github.com/nvidia/apex to run this example.")
 
@@ -171,7 +172,7 @@ def main():
         # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer, T_max=configs.epochs * len(train_loader), T_warmup= 3 * len(train_loader), eta_min=1e-5)
         scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=len(train_loader), eta_min=1e-6)  # clw note: 默认cosine是按batch来更新 ; warmup_iters=500, eta_min=1e-7
     elif configs.lr_scheduler == "cosine_change_per_epoch":
-        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1, eta_min=1e-6)  # clw note: usually 1e-6
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1, eta_min=configs.lr*0.001)  # clw note: usually 1e-6
     elif configs.lr_scheduler == "on_loss":
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
@@ -179,12 +180,12 @@ def main():
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.2, patience=5, verbose=False)
 
     # for fp16
-    if configs.fp16:
-        model, optimizer = amp.initialize(model, optimizer,
-                                          opt_level=configs.opt_level,
-                                          keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
-                                          # verbosity=0  # 不打印amp相关的日志
-                                          )
+    # if configs.fp16:
+        # model, optimizer = amp.initialize(model, optimizer,
+        #                                   opt_level=configs.opt_level,
+        #                                   keep_batchnorm_fp32=None if configs.opt_level == "O1" else False,
+        #                                   # verbosity=0  # 不打印amp相关的日志
+        #                                   )
     if configs.resume:
         # Load checkpoint.
         print('==> Resuming from checkpoint..')
@@ -206,7 +207,7 @@ def main():
     elif configs.loss_func == "CELoss":
         criterion = nn.CrossEntropyLoss()
     elif configs.loss_func == "TaylorCrossEntropyLoss":
-        criterion = TaylorCrossEntropyLoss()
+        criterion = TaylorCrossEntropyLoss(n=2, smoothing=configs.label_smooth_epsilon)
     elif configs.loss_func == "SymmetricCrossEntropy":
         criterion = SymmetricCrossEntropy()
     elif configs.loss_func == "BiTemperedLogisticLoss":
@@ -238,7 +239,7 @@ def main():
 
         if configs.evaluate:
             val_loss, val_acc, test_5 = validate(val_loader, model, criterion, epoch)
-            tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
+            #tb_logger.add_scalar('loss_val', val_loss, epoch)  # clw note: 观察训练集loss曲线
 
             # append logger file
             lr_current = get_lr(optimizer)
@@ -296,6 +297,9 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
     batch_nums = len(train_loader)  # clw add
     criterion2 = LabelSmoothingLoss_clw(label_smoothing=0, class_nums=configs.num_classes)
 
+    if configs.fp16:
+        scaler = amp.GradScaler()
+
     bar = Bar('Training: ', max=len(train_loader))
     for batch_idx, (inputs, targets) in enumerate(train_loader):
 
@@ -318,21 +322,23 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
             # adjust lambda to exactly match pixel ratio
             lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (inputs.size()[-1] * inputs.size()[-2]))
             # compute output
-            outputs = model(inputs)
-            #loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
+            with amp.autocast():
+                outputs = model(inputs)
+                #loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
 
-            loss = criterion2(outputs, target_a) * lam + criterion2(outputs, target_b) * (1. - lam)  #### no label smooth when using cutmix
+                loss = criterion2(outputs, target_a) * lam + criterion2(outputs, target_b) * (1. - lam)  #### no label smooth when using cutmix
         else:
             # compute output
-            outputs = model(inputs)
-            loss = criterion(outputs, targets)
+            with amp.autocast():
+                outputs = model(inputs)
+                loss = criterion(outputs, targets)
 
 
 
         ################################################### clw modify: tensorboard
         curr_step = batch_nums * epoch + batch_idx
-        tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
-        # tb_logger.add_image('image_0', make_grid(inputs[0], normalize=True), curr_step)  # 注意这样会导致训练速度下降很多,gpu利用率明显降低 !!!从97左右降到60 70左右
+        #tb_logger.add_scalar('loss_train', loss.item(), curr_step)   # clw note: 观察训练集loss曲线
+        ######### tb_logger.add_image('image_0', make_grid(inputs[0], normalize=True), curr_step)  # 注意这样会导致训练速度下降很多,gpu利用率明显降低 !!!从97左右降到60 70左右
         #                                                                                 # 因为在Dataloader里面对输入图片做了Normalize，导致此时的图像已经有正有负，所以这里要用到make_grid，再归一化到0～1之间；
         ####################################################
 
@@ -347,8 +353,11 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
 
         #optimizer.zero_grad()
         if configs.fp16:
-            with amp.scale_loss(loss, optimizer) as scaled_loss:
-                scaled_loss.backward()
+            # with amp.scale_loss(loss, optimizer) as scaled_loss:
+            #     scaled_loss.backward()
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
         else:
             loss.backward()
 

@@ -189,7 +189,8 @@ def bi_tempered_logistic_loss(activations,
 
     if label_smoothing > 0:
         num_classes = labels_onehot.shape[-1]
-        labels_onehot = ( 1 - label_smoothing * num_classes / (num_classes - 1) )  * labels_onehot + label_smoothing / (num_classes - 1)  # clw note TODO: 学习这种写法到labelsmooth_clw
+        labels_onehot = ( 1 - label_smoothing * num_classes / (num_classes - 1) )  * labels_onehot   + label_smoothing / (num_classes - 1)  # clw note TODO: 学习这种写法,可以用于mixh
+         # 比如labelsmooth=0.2, 只要 labels_onehot 不是0的,都变成1-0.2*5/4= 0.75倍,比如mix之后的[0.6, 0, 0 ,0.4, 0],相当于少了0.25,后面再补充 0.2/4 *5
 
     probabilities = tempered_softmax(activations, t2, num_iters)
 

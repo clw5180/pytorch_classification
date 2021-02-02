@@ -181,7 +181,6 @@ def get_train_transforms(CFG):
 
             A.Resize(height=600, width=800),
             A.RandomResizedCrop(height=CFG.image_size, width=CFG.image_size, scale=(0.8, 1.0), p=1),
-            A.CenterCrop(height=CFG.image_size, width=CFG.image_size),
             A.Transpose(p=0.5),
             A.HorizontalFlip(p=0.5),
             A.VerticalFlip(p=0.5),

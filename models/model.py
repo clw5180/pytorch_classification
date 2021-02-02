@@ -3,7 +3,7 @@ import pretrainedmodels
 from torch import nn
 import torchvision
 from config import configs
-from efficientnet_pytorch import EfficientNet
+###from efficientnet_pytorch import EfficientNet
 import torch
 from torch.nn.parameter import Parameter
 import torch.nn.functional as F
@@ -137,10 +137,12 @@ def get_model():
         model = timm.create_model('tf_efficientnet_b2_ns', pretrained=True)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif configs.model_name.startswith("efficientnet-b3"):
+        #model = timm.create_model('tf_efficientnet_b3_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate, drop_rate=configs.drop_out_rate)
         model = timm.create_model('tf_efficientnet_b3_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif configs.model_name.startswith("efficientnet-b4"):
-        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True)  # drop_path_rate=0.2~0.5
+        #model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate)  # drop_path_rate=0.2~0.5
+        model = timm.create_model('tf_efficientnet_b4_ns', pretrained=True, num_classes=configs.num_classes)
         model.classifier = nn.Linear(model.classifier.in_features, configs.num_classes)
     elif configs.model_name.startswith("efficientnet-b5"):
         model = timm.create_model('tf_efficientnet_b5_ns', pretrained=True, num_classes=configs.num_classes, drop_path_rate=configs.drop_out_rate)

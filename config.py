@@ -45,7 +45,7 @@ class DefaultConfigs(object):
     sampler = "RandomSampler"   # "RandomSampler"、"WeightedSampler"、"imbalancedSampler"（和WeightedSampler基本一样）
 
 
-    optim = "sgd"  # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
+    optim = "adam"  # "adam","radam","novograd",sgd","ranger","ralamb","over9000","lookahead","lamb"
     #step_milestones = [9, 12, 14]
     #step_milestones = [12, 16, 19]
     #step_milestones = [10, 21, 27]
@@ -75,13 +75,14 @@ class DefaultConfigs(object):
         epochs = 15
         lr_scheduler = "cosine_change_per_epoch"
 
-    bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
+    bs = 16         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     input_size = (512, 512) if "vit" not in model_name else (384, 384)   # clw note：注意是 w, h   512、384、784、(800, 600)
 
     freeze_bn_epochs = 0
     accum_iter = 1
-    drop_out_rate = 0.2 if "efficientnet" in model_name else 0.0
-    loss_func = "BiTemperedLogisticLoss" #  "LabelSmoothingLoss"、 "LabelSmoothingLoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、 "TaylorCrossEntropyLoss",
+    ###drop_out_rate = 0.2 if "efficientnet" in model_name else 0.0
+    drop_out_rate = 0.0
+    loss_func = "TaylorCrossEntropyLoss" #  "LabelSmoothingLoss"、 "LabelSmoothingLoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、 "TaylorCrossEntropyLoss",
                                      # "SymmetricCrossEntropy", "BiTemperedLogisticLoss"
     label_smooth_epsilon = 0.3
     gpu_id = "0"           # default gpu id

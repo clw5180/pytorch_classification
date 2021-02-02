@@ -12,7 +12,7 @@ import time
 
 time_local = time.localtime()  # clw modify
 
-from ranger import Ranger  # this is from ranger.py
+#### from ranger import Ranger  # this is from ranger.py
 
 def get_optimizer(model):
     if configs.optim == "adam":

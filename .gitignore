@@ -12,6 +12,7 @@
 *.npy
 *.csv
 *.ckpt
+*.bin
 runs
 logs
 
