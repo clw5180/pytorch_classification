@@ -47,7 +47,7 @@ albu_transforms_train =  [
 
                 ######### HolyCHen Vit !!!
                 A.Resize(height=600, width=800),
-                A.RandomResizedCrop(height=configs.input_size[1], width=configs.input_size[0], scale=(0.8, 1.0), p=1),
+                A.RandomResizedCrop(height=configs.input_size[1], width=configs.input_size[0], scale=(0.6, 1.0), p=1),
                 A.CenterCrop(height=configs.input_size[1], width=configs.input_size[0]),
                 A.Transpose(p=0.5),
                 A.HorizontalFlip(p=0.5),
@@ -109,17 +109,12 @@ class CassavaTrainingDataset(Dataset):
         self.label_list = label_list
         self.mode = mode
         self.input_size = configs.input_size if isinstance(configs.input_size, tuple) else (configs.input_size, configs.input_size)
-        self.Resize_Crop = A.Compose( [A.RandomResizedCrop(self.input_size[1], self.input_size[0], scale=(0.8, 1.0), ratio=(0.75, 1.333333))])
+        self.Resize_Crop = A.Compose( [A.RandomResizedCrop(self.input_size[1], self.input_size[0], scale=(0.6, 1.0), ratio=(0.75, 1.333333))])
         imgs = []
-        if self.mode == "test":
-            for index,row in label_list.iterrows():
-                imgs.append((row["filename"]))
-            self.imgs = imgs
-        else:
-            for index,row in label_list.iterrows():
-                imgs.append((row["filename"],row["label"]))
-            self.imgs = imgs
-
+        for index, row in label_list.iterrows():
+            imgs.append((row["filename"]))
+        self.imgs = imgs
+        if self.mode == "train" or self.mode == "val":
             self.do_mixup_prob = configs.do_mixup_in_dataset
             self.do_cutmix_prob = configs.do_cutmix_in_dataset
             assert (self.do_mixup_prob == 0 or self.do_cutmix_prob == 0)  # can't >0 both

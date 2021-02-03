@@ -58,7 +58,8 @@ class DefaultConfigs(object):
 
     if optim == "adam":  # clw note: not stable
         lr_scheduler = "cosine_change_per_epoch"  # lr scheduler method: "step", "cosine_change_per_epoch", "cosine_change_per_batch", "adjust","on_loss","on_acc",    adjust不需要配置这里的epoch和lr
-        lr = 1e-4  # adam: 1e-4, 3e-4, 5e-4
+        #lr = 1e-4  # adam: 1e-4, 3e-4, 5e-4
+        lr = 1e-4
         epochs = 10
     elif optim == "sgd":
         lr_scheduler = "step"
@@ -75,13 +76,13 @@ class DefaultConfigs(object):
         epochs = 15
         lr_scheduler = "cosine_change_per_epoch"
 
-    bs = 16         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
+    bs = 32         # clw note: bs=128, 配合input_size=784, workers = 12，容易超出共享内存大小  报错：ERROR: Unexpected bus error encountered in worker. This might be caused by insufficient shared memory (shm).
     input_size = (512, 512) if "vit" not in model_name else (384, 384)   # clw note：注意是 w, h   512、384、784、(800, 600)
 
     freeze_bn_epochs = 0
     accum_iter = 1
-    ###drop_out_rate = 0.2 if "efficientnet" in model_name else 0.0
-    drop_out_rate = 0.0
+    drop_out_rate = 0.2 if "efficientnet" in model_name else 0.0
+    #drop_out_rate = 0.0
     loss_func = "TaylorCrossEntropyLoss" #  "LabelSmoothingLoss"、 "LabelSmoothingLoss_clw", "CELoss"、"BCELoss"、"FocalLoss"、“FocalLoss_clw”、 "TaylorCrossEntropyLoss",
                                      # "SymmetricCrossEntropy", "BiTemperedLogisticLoss"
     label_smooth_epsilon = 0.3
@@ -90,8 +91,8 @@ class DefaultConfigs(object):
     opt_level = "O1"      # if use fp16, "O0" means fp32，"O1" means mixed，"O2" means except BN，"O3" means only fp16
 
     do_mixup_in_dataset = 0
-    do_cutmix_in_dataset = 0.5   # in __get_items__()  clw note:因为有可能是同一个类的, 相当于标签上看起来没有做cutmix一样...
-    do_cutmix_in_batch = 0
+    do_cutmix_in_dataset = 0   # in __get_items__()  clw note:因为有可能是同一个类的, 相当于标签上看起来没有做cutmix一样...
+    do_cutmix_in_batch = 0.5
 
 
     def __str__(self):  # 定义打印对象时打印的字符串

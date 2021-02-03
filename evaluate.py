@@ -177,7 +177,9 @@ if __name__ == "__main__":
     #model_file_name = 'efficientnet-b3_2021_01_12_00_06_11-best_model.pth.tar'
     #model_file_name = 'efficientnet-b3_2021_01_30_22_17_34-best_model.pth.tar'
     #model_file_name = 'efficientnet-b3_2021_01_30_22_17_34-checkpoint.pth.tar'
-    model_file_name = 'efficientnet-b3_2021_01_31_21_53_10-best_model.pth.tar'
+    #model_file_name = 'efficientnet-b3_2021_01_31_21_53_10-best_model.pth.tar'
+    #model_file_name = 'efficientnet-b3_2021_02_02_20_02_13-best_model.pth.tar'
+    model_file_name = 'efficientnet-b3_2021_02_02_20_02_13-checkpoint.pth.tar'
 
     if "ckpt" in model_file_name:  # from train_holychen.py
         model_root_path = '/home/user/pytorch_classification'

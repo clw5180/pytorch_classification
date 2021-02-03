@@ -17,7 +17,7 @@ from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
 
-from utils.reader import CassavaTrainingDataset, albu_transforms_train, albu_transforms_train_cutmix
+from utils.reader import CassavaTrainingDataset, albu_transforms_train, albu_transforms_train_cutmix, albu_transforms_val
 from utils.scheduler import WarmupCosineAnnealingLR, WarmUpCosineAnnealingLR2, WarmupCosineLR3
 from utils.sampler.imbalanced import ImbalancedDatasetSampler
 from utils.sampler.utils import make_weights_for_balanced_classes
@@ -114,6 +114,7 @@ def main():
     logger.info('albu_transforms_train: ' + str(albu_transforms_train))
     if configs.do_cutmix_in_dataset>0 or configs.do_cutmix_in_batch > 0:
         logger.info('albu_transforms_train_cutmix: ' + str(albu_transforms_train_cutmix))
+    logger.info('albu_transforms_val: ' + str(albu_transforms_val))
 
     best_acc = 0  # best test accuracy
     start_epoch = configs.start_epoch
@@ -172,7 +173,7 @@ def main():
         # scheduler = WarmUpCosineAnnealingLR2(optimizer=optimizer, T_max=configs.epochs * len(train_loader), T_warmup= 3 * len(train_loader), eta_min=1e-5)
         scheduler = WarmupCosineLR3(optimizer, total_iters=configs.epochs * len(train_loader), warmup_iters=len(train_loader), eta_min=1e-6)  # clw note: 默认cosine是按batch来更新 ; warmup_iters=500, eta_min=1e-7
     elif configs.lr_scheduler == "cosine_change_per_epoch":
-        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1, eta_min=configs.lr*0.001)  # clw note: usually 1e-6
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=configs.epochs, T_mult=1, eta_min=configs.lr*0.01)  # clw note: usually 1e-6
     elif configs.lr_scheduler == "on_loss":
         # scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.2, patience=5, verbose=False)
         scheduler = lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)

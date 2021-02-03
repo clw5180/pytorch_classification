@@ -82,8 +82,8 @@ class Config:
     verbose_step = 1
 
     #criterion = 'LabelSmoothingCrossEntropy'
-    criterion = 'Taylor'
     #criterion = 'bitempered'
+    criterion = 'Taylor'
     label_smoothing = 0.3
 
     train_id = [0, 1, 2, 3, 4]
@@ -124,7 +124,7 @@ class CassavaDataset(Dataset):
         if self.mode == "train":
             # if random.random() < self.do_mixup_prob:
             #     img, label = self.do_mixup(img, label, index)
-            if random.random() < 0:
+            if random.random() < 0.5:
                 img, label = self.do_cutmix(image, label, index)
             else:
                 img = self.transforms(image=image)['image']  # clw note: 考虑到这里有crop等导致输入尺寸不同的操作，把resize放在后边
@@ -329,7 +329,7 @@ def train_one_epoch(epoch, model, loss_fn, optimizer, train_loader, device, sche
         targets = targets.to(device).long()
 
         with autocast():
-            if np.random.rand() < 0.5:
+            if np.random.rand() < 0:
                 # generate mixed sample
                 #lam = np.random.beta(1.0, 1.0)
                 lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
@@ -516,9 +516,9 @@ if __name__ == '__main__':
         if CFG.criterion == 'LabelSmoothingCrossEntropy':  #### label smoothing cross entropy
             loss_train = LabelSmoothingCrossEntropy(smoothing=CFG.label_smoothing)
         elif CFG.criterion == 'bitempered':
-            loss_train = BiTemperedLogisticLoss(t1=0.3, t2=1.0,smoothing=CFG.label_smoothing)  # clw note: now have bug...
+            loss_train = BiTemperedLogisticLoss(t1=0.3, t2=1.0, smoothing=CFG.label_smoothing)  # clw note: now have bug...
         elif CFG.criterion == 'Taylor':
-            loss_train = TaylorCrossEntropyLoss(n=2, smoothing=CFG.label_smoothing)
+            loss_train =  TaylorCrossEntropyLoss(n=2, smoothing=CFG.label_smoothing)
         else:
             loss_train = nn.CrossEntropyLoss().to(device)
         #loss_val = nn.CrossEntropyLoss().to(device)

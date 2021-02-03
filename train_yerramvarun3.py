@@ -145,7 +145,7 @@ class CassavaLeafDataset(nn.Module):
             label: label to mixup
             index: cutmix with other imgs in dataset, exclude itself( index )
         '''
-
+        print(self.df.shape[0])
         r_idx = random.choice(np.delete(np.arange(self.df.shape[0]), index))
 
         r_img_path = os.path.join(self.root_dir, self.df.iloc[r_idx, 0])

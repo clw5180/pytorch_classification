@@ -1,6 +1,8 @@
+python train_holychen.py
+python train_holychen2.py
 #
-sleep 5.5h
-python train_yerramvarun2.py
+#sleep 5.5h
+#python train_yerramvarun2.py
 
 
 # 20210131
