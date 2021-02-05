@@ -51,9 +51,9 @@ class BinaryHead(nn.Module):
         return logit
 
 
-class se_resnext50_32x4d(nn.Module):
+class se_resnext50_32x4d_clw(nn.Module):
     def __init__(self, num_classes):
-        super(se_resnext50_32x4d, self).__init__()
+        super(se_resnext50_32x4d_clw, self).__init__()
 
         self.model_ft = nn.Sequential(
             *list(pretrainedmodels.__dict__["se_resnext50_32x4d"](num_classes=1000, pretrained="imagenet").children())[
@@ -91,7 +91,7 @@ def get_model():
         model.fc = nn.Linear(n_features, configs.num_classes)
 
     elif configs.model_name.startswith("se_resnext50_32x4d"):
-        #model = se_resnext50_32x4d(configs.num_classes)    # 自定义se_resnext50_32x4d, result not good
+        #model = se_resnext50_32x4d_clw(configs.num_classes)    # 自定义se_resnext50_32x4d, result not good
 
         model = pretrainedmodels.se_resnext50_32x4d(pretrained="imagenet")
         model.last_linear=nn.Linear(2048, configs.num_classes)

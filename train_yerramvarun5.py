@@ -34,89 +34,28 @@ import timm
 import pretrainedmodels
 from utils.utils import rand_bbox
 
-
-################################################
-def l2_norm(input, axis=1):
-    norm = torch.norm(input, 2, axis, True)
-    output = torch.div(input, norm)
-    return output
-
-
-class BinaryHead(nn.Module):
-    def __init__(self, num_class=4, emb_size=2048, s=16.0):
-        super(BinaryHead, self).__init__()
-        self.s = s
-        self.fc = nn.Sequential(nn.Linear(emb_size, num_class))
-
-    def forward(self, fea):
-        fea = l2_norm(fea)
-        logit = self.fc(fea) * self.s
-        return logit
-
-
-class se_resnext50_32x4d_clw(nn.Module):
-    def __init__(self, num_classes):
-        super(se_resnext50_32x4d_clw, self).__init__()
-
-        self.model_ft = nn.Sequential(
-            *list(pretrainedmodels.__dict__["se_resnext50_32x4d"](num_classes=1000, pretrained="imagenet").children())[
-                :-2
-            ]
-        )
-        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.model_ft.last_linear = None
-        self.fea_bn = nn.BatchNorm1d(2048)
-        self.fea_bn.bias.requires_grad_(False)
-        self.binary_head = BinaryHead(num_classes, emb_size=2048, s=1)
-        self.dropout = nn.Dropout(p=0.2)
-
-    def forward(self, x):
-
-        img_feature = self.model_ft(x)
-        img_feature = self.avg_pool(img_feature)
-        img_feature = img_feature.view(img_feature.size(0), -1)
-        fea = self.fea_bn(img_feature)
-        # fea = self.dropout(fea)
-        output = self.binary_head(fea)
-
-        return output
-################################################
-
-
+ROOT_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification"
+TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_images"
+TEST_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/test_images"
 
 class CFG:
     #model_name = 'tf_efficientnet_b3_ns'
-    #model_name = 'seresnext50_32x4d_timm'
-    model_name = 'seresnext50_32x4d_pretrainedmodels'
-    #model_name = 'swsl_resnext50_32x4d'  # lr 0.1, bad
-    #model_name = 'seresnext101_32x4d'
-    #model_name = 'seresnet152d_320'
-    #model_name = 'vit_base_patch16_384'
+    model_name = 'tf_efficientnet_b4_ns'
+    #model_name = 'seresnext50_32x4d'
+    img_size = 512
 
-    if 'vit' in model_name:
-        img_size = 384
-    else:
-        img_size = 512
-
+    T_max = 10
+    T_0 = 10
     optim = 'sgd'
     if optim == 'adam':
-        #num_epochs = 10
-        num_epochs = 12
+        num_epochs = 10
         lr = 1e-4
-        #lr = 3e-4
-
-        T_max = num_epochs
-        T_0 = num_epochs
         scheduler = 'CosineAnnealingWarmRestarts'
     else:
         num_epochs = 12
-        #num_epochs = 15
         milestones = [6, 10, 11]
-        #milestones = [9, 13, 14]
-        #lr = 1e-1 # clw modify: for se resnext: 1e-1 for timm ,1e-2 for pretrainedmodels
-        lr = 1e-2
+        lr = 1e-1
         scheduler = 'step'
-
     min_lr = 1e-6
     batch_size = 32
     weight_decay = 1e-6
@@ -126,11 +65,8 @@ class CFG:
     n_fold = 5
     #NUM_FOLDS_TO_RUN = [2, ]
     NUM_FOLDS_TO_RUN = [0,1,2,3,4]
-    #smoothing = 0.2
-    smoothing = 0.3
+    smoothing = 0.2
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
-    print('model:', model_name)
-    print('optim:', optim)
     print('lr:', lr)
     print('scheduler:', scheduler)
     print('batchsize:', batch_size)
@@ -151,18 +87,8 @@ def set_seed(seed=42):
     torch.backends.cudnn.benchmark = True
 
 
-ROOT_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification"
-TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_images"
-df = pd.read_csv(f"{ROOT_DIR}/train.csv")
-
-# ROOT_DIR = "/home/user/dataset/kaggle_cassava_merge"
-# TRAIN_DIR = "/home/user/dataset/kaggle_cassava_merge/train"
-# df = pd.read_csv(f"{ROOT_DIR}/merged.csv")
-
-#TEST_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/test_images"
-
 set_seed(CFG.seed)
-
+df = pd.read_csv(f"{ROOT_DIR}/train.csv")
 
 #skf = StratifiedKFold(n_splits=CFG.n_fold)
 skf = StratifiedKFold(n_splits=CFG.n_fold, shuffle=True, random_state=CFG.seed)  # Otherwise your folds could intersect during different launching for training and it will lead to decreasing of the accuracy if you will use k-fold ansable for the submittion.
@@ -454,30 +380,10 @@ for fold in CFG.NUM_FOLDS_TO_RUN:
         model = timm.create_model(CFG.model_name, pretrained=True)
         num_features = model.classifier.in_features
         model.classifier = nn.Linear(num_features, CFG.num_classes)
-    elif 'seresnext50_32x4d_timm' in CFG.model_name:
-        #model = se_resnext50_32x4d_clw(CFG.num_classes)
-        model = timm.create_model('seresnext50_32x4d', pretrained=True)
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, CFG.num_classes)
-    elif 'seresnext50_32x4d_pretrainedmodels' in CFG.model_name:
-        model = pretrainedmodels.se_resnext50_32x4d(pretrained='imagenet')
-        model.last_linear=nn.Linear(2048, CFG.num_classes)
-        model.avg_pool = nn.AdaptiveAvgPool2d(1)
-    elif 'seresnext101' in CFG.model_name:
-        model = pretrainedmodels.se_resnext101_32x4d(pretrained='imagenet')
-        model.last_linear=nn.Linear(2048, CFG.num_classes)
-        model.avg_pool = nn.AdaptiveAvgPool2d(1)
-    elif 'seresnet152' in CFG.model_name:
+    elif 'seresnext' in CFG.model_name:
         model = timm.create_model(CFG.model_name, pretrained=True)
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, CFG.num_classes)
-    elif 'vit' in CFG.model_name:
-        model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=CFG.num_classes)  # , drop_rate=0.1)
-        model.head = nn.Linear(model.head.in_features, CFG.num_classes)
-    elif 'swsl_resnext50_32x4d' in CFG.model_name:
-        model = timm.create_model('swsl_resnext50_32x4d', pretrained=True, num_classes=CFG.num_classes)  # , drop_rate=0.1)
-        model.fc = nn.Linear(model.fc.in_features, CFG.num_classes)
-
     else:
         assert False
 

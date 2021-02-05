@@ -86,10 +86,11 @@ class se_resnext50_32x4d_clw(nn.Module):
 
 class CFG:
     #model_name = 'tf_efficientnet_b3_ns'
+    #model_name = 'tf_efficientnet_b5_ns'
     #model_name = 'seresnext50_32x4d_timm'
-    model_name = 'seresnext50_32x4d_pretrainedmodels'
+    #model_name = 'seresnext50_32x4d_pretrainedmodels'
     #model_name = 'swsl_resnext50_32x4d'  # lr 0.1, bad
-    #model_name = 'seresnext101_32x4d'
+    model_name = 'seresnext101_32x4d'
     #model_name = 'seresnet152d_320'
     #model_name = 'vit_base_patch16_384'
 
@@ -118,7 +119,7 @@ class CFG:
         scheduler = 'step'
 
     min_lr = 1e-6
-    batch_size = 32
+    batch_size = 16
     weight_decay = 1e-6
     seed = 42
     num_classes = 5

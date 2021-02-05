@@ -1,5 +1,14 @@
-python train_holychen.py
-python train_holychen2.py
+# 20210204   train_yerramvarun6: effb5, 456
+python train_yerramvarun6.py
+wait
+python train_yerramvarun4.py
+
+#sleep 4.7h
+#python train_yerramvarun5.py  # effb4
+
+#python train_holychen.py
+#python train_holychen2.py
+
 #
 #sleep 5.5h
 #python train_yerramvarun2.py

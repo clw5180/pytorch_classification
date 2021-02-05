@@ -33,65 +33,17 @@ from albumentations.pytorch import ToTensorV2
 import timm
 import pretrainedmodels
 from utils.utils import rand_bbox
-
-
-################################################
-def l2_norm(input, axis=1):
-    norm = torch.norm(input, 2, axis, True)
-    output = torch.div(input, norm)
-    return output
-
-
-class BinaryHead(nn.Module):
-    def __init__(self, num_class=4, emb_size=2048, s=16.0):
-        super(BinaryHead, self).__init__()
-        self.s = s
-        self.fc = nn.Sequential(nn.Linear(emb_size, num_class))
-
-    def forward(self, fea):
-        fea = l2_norm(fea)
-        logit = self.fc(fea) * self.s
-        return logit
-
-
-class se_resnext50_32x4d_clw(nn.Module):
-    def __init__(self, num_classes):
-        super(se_resnext50_32x4d_clw, self).__init__()
-
-        self.model_ft = nn.Sequential(
-            *list(pretrainedmodels.__dict__["se_resnext50_32x4d"](num_classes=1000, pretrained="imagenet").children())[
-                :-2
-            ]
-        )
-        self.avg_pool = nn.AdaptiveAvgPool2d((1, 1))
-        self.model_ft.last_linear = None
-        self.fea_bn = nn.BatchNorm1d(2048)
-        self.fea_bn.bias.requires_grad_(False)
-        self.binary_head = BinaryHead(num_classes, emb_size=2048, s=1)
-        self.dropout = nn.Dropout(p=0.2)
-
-    def forward(self, x):
-
-        img_feature = self.model_ft(x)
-        img_feature = self.avg_pool(img_feature)
-        img_feature = img_feature.view(img_feature.size(0), -1)
-        fea = self.fea_bn(img_feature)
-        # fea = self.dropout(fea)
-        output = self.binary_head(fea)
-
-        return output
-################################################
-
-
+from utils.scheduler import GradualWarmupSchedulerV2
+from utils.losses.label_smoothing import LabelSmoothingLoss
 
 class CFG:
     #model_name = 'tf_efficientnet_b3_ns'
     #model_name = 'seresnext50_32x4d_timm'
-    model_name = 'seresnext50_32x4d_pretrainedmodels'
+    #model_name = 'seresnext50_32x4d_pretrainedmodels'
     #model_name = 'swsl_resnext50_32x4d'  # lr 0.1, bad
     #model_name = 'seresnext101_32x4d'
     #model_name = 'seresnet152d_320'
-    #model_name = 'vit_base_patch16_384'
+    model_name = 'vit_base_patch16_384'
 
     if 'vit' in model_name:
         img_size = 384
@@ -113,9 +65,13 @@ class CFG:
         #num_epochs = 15
         milestones = [6, 10, 11]
         #milestones = [9, 13, 14]
-        #lr = 1e-1 # clw modify: for se resnext: 1e-1 for timm ,1e-2 for pretrainedmodels
-        lr = 1e-2
+
         scheduler = 'step'
+        lr = 0.01 # clw modify: for se resnext: 1e-1 for timm ,1e-2 for pretrainedmodels
+
+        #scheduler = 'warmup'
+        #lr = 1e-3
+
 
     min_lr = 1e-6
     batch_size = 32
@@ -126,8 +82,8 @@ class CFG:
     n_fold = 5
     #NUM_FOLDS_TO_RUN = [2, ]
     NUM_FOLDS_TO_RUN = [0,1,2,3,4]
-    #smoothing = 0.2
-    smoothing = 0.3
+    smoothing = 0.2
+    #smoothing = 0.3
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print('model:', model_name)
     print('optim:', optim)
@@ -238,64 +194,6 @@ data_transforms = {
 }
 
 
-# implementations reference - https://github.com/CoinCheung/pytorch-loss/blob/master/pytorch_loss/taylor_softmax.py
-# paper - https://www.ijcai.org/Proceedings/2020/0305.pdf
-
-class TaylorSoftmax(nn.Module):
-
-    def __init__(self, dim=1, n=2):
-        super(TaylorSoftmax, self).__init__()
-        assert n % 2 == 0
-        self.dim = dim
-        self.n = n
-
-    def forward(self, x):
-        fn = torch.ones_like(x)
-        denor = 1.
-        for i in range(1, self.n + 1):
-            denor *= i
-            fn = fn + x.pow(i) / denor
-        out = fn / fn.sum(dim=self.dim, keepdims=True)
-        return out
-
-
-class LabelSmoothingLoss(nn.Module):
-
-    def __init__(self, classes, smoothing=0.0, dim=-1):
-        super(LabelSmoothingLoss, self).__init__()
-        self.confidence = 1.0 - smoothing
-        self.smoothing = smoothing
-        self.cls = classes
-        self.dim = dim
-
-    def forward(self, pred, target):
-        """Taylor Softmax and log are already applied on the logits"""
-        # pred = pred.log_softmax(dim=self.dim)
-        with torch.no_grad():
-            true_dist = torch.zeros_like(pred)
-            true_dist.fill_(self.smoothing / (self.cls - 1))
-            true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
-        return torch.mean(torch.sum(-true_dist * pred, dim=self.dim))
-
-
-class TaylorCrossEntropyLoss(nn.Module):
-
-    def __init__(self, n=2, ignore_index=-1, reduction='mean', smoothing=0.2):
-        super(TaylorCrossEntropyLoss, self).__init__()
-        assert n % 2 == 0
-        self.taylor_softmax = TaylorSoftmax(dim=1, n=n)
-        self.reduction = reduction
-        self.ignore_index = ignore_index
-        self.lab_smooth = LabelSmoothingLoss(CFG.num_classes, smoothing=smoothing)
-
-    def forward(self, logits, labels):
-        log_probs = self.taylor_softmax(logits).log()
-        # loss = F.nll_loss(log_probs, labels, reduction=self.reduction,
-        #        ignore_index=self.ignore_index)
-        loss = self.lab_smooth(log_probs, labels)
-        return loss
-
-
 def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders, dataset_sizes, device, fold):
     start = time.time()
     best_model_wts = copy.deepcopy(model.state_dict())
@@ -383,8 +281,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
             # deep copy the model
             if phase == 'valid' and epoch_acc >= best_acc:
                 best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
-                PATH = f"Fold{fold}_{best_acc}_epoch{epoch}_v2.bin"
+                #PATH = f"Fold{fold}_{best_acc}_epoch{epoch}_v2.bin"
+                PATH = f"Fold{fold}_epoch{epoch}_{CFG.model_name}_v7.bin"
                 torch.save(model.state_dict(), PATH)
 
         print()
@@ -439,9 +337,13 @@ def fetch_scheduler(optimizer):
         scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=CFG.T_0, T_mult=1, eta_min=CFG.min_lr)
     elif CFG.scheduler == 'step':
         scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
+    elif CFG.scheduler == 'warmup':
+        warmup_epochs = 1
+        #scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, CFG.num_epochs - warmup_epochs)
+        scheduler_normal = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
+        scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=10, total_epoch=warmup_epochs, after_scheduler=scheduler_normal)
     elif CFG.scheduler == None:
         return None
-
     return scheduler
 
 
@@ -471,7 +373,7 @@ for fold in CFG.NUM_FOLDS_TO_RUN:
         model = timm.create_model(CFG.model_name, pretrained=True)
         num_features = model.fc.in_features
         model.fc = nn.Linear(num_features, CFG.num_classes)
-    elif 'vit' in CFG.model_name:
+    elif 'vit_base_patch16_384' in CFG.model_name:
         model = timm.create_model('vit_base_patch16_384', pretrained=True, num_classes=CFG.num_classes)  # , drop_rate=0.1)
         model.head = nn.Linear(model.head.in_features, CFG.num_classes)
     elif 'swsl_resnext50_32x4d' in CFG.model_name:
@@ -488,7 +390,8 @@ for fold in CFG.NUM_FOLDS_TO_RUN:
     else:
         optimizer = optim.SGD(model.parameters(), lr=CFG.lr, momentum=0.9, weight_decay=CFG.weight_decay, nesterov=True)
 
-    criterion = TaylorCrossEntropyLoss(n=2, smoothing=CFG.smoothing)
+    #criterion = TaylorCrossEntropyLoss(n=2, smoothing=CFG.smoothing)
+    criterion = LabelSmoothingLoss(CFG.num_classes, CFG.smoothing)
     scheduler = fetch_scheduler(optimizer)
     ###
 
