@@ -56,7 +56,7 @@ class TaylorCrossEntropyLoss(nn.Module):
     '''
     This is the autograd version
     '''
-    def __init__(self, n=2, ignore_index=-1, reduction='mean', smoothing=0.2):
+    def __init__(self,  class_nums, n=2, smoothing=0.2, ignore_index=-1, reduction='mean'):
         super(TaylorCrossEntropyLoss, self).__init__()
         assert n % 2 == 0
         self.taylor_softmax = TaylorSoftmax(dim=1, n=n)
@@ -64,15 +64,10 @@ class TaylorCrossEntropyLoss(nn.Module):
         self.ignore_index = ignore_index
 
         ##### clw modify
+        self.lab_smooth = LabelSmoothingLoss(class_nums, smoothing)
         self.label_smoothing = smoothing
-        self.class_nums = 5
-        smoothing_value = self.label_smoothing / (self.class_nums - 1)
-        one_hot = torch.full((self.class_nums,), smoothing_value)
-        if self.ignore_index >= 0:
-            one_hot[self.ignore_index] = 0
-        self.register_buffer('one_hot', one_hot.unsqueeze(0))  # clw note: why
+        self.class_nums = class_nums
 
-        self.confidence = 1.0 - self.label_smoothing
         #####
 
     def forward(self, logits, labels):
@@ -85,14 +80,14 @@ class TaylorCrossEntropyLoss(nn.Module):
         '''
         # clw note: origin is this,
         log_probs = self.taylor_softmax(logits).log()
-        if len(labels.shape != 2):  # clw note: not OneHot
-            if self.smoothing == 0:
+        if len(labels.shape) != 2:  # clw note: not OneHot
+            if self.label_smoothing == 0:
                 loss = F.nll_loss(log_probs, labels, reduction=self.reduction, ignore_index=self.ignore_index)
             else:
                 loss = self.lab_smooth(log_probs, labels)
         else:
             ############################ clw note: origin modify
-            ### clw note: if do mixup or cutmix, can also use these code
+            ### clw note: if do mixup or cutmix in dataset, can also use these code
             log_output = self.taylor_softmax(logits).log()
             model_prob = (1 - self.label_smoothing * self.class_nums / (self.class_nums - 1)) * labels + self.label_smoothing / (self.class_nums - 1)
 

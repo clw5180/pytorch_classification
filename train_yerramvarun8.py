@@ -35,17 +35,17 @@ import pretrainedmodels
 from utils.utils import rand_bbox
 from utils.scheduler import GradualWarmupSchedulerV2
 from utils.losses.taylorceloss import TaylorCrossEntropyLoss
-from utils.losses.label_smoothing import LabelSmoothingLoss
+#from utils.losses.label_smoothing import LabelSmoothingLoss
 from utils.losses.bitemperedloss import BiTemperedLogisticLoss
 
 class CFG:
     #model_name = 'tf_efficientnet_b3_ns'
     #model_name = 'seresnext50_32x4d_timm'
-    #model_name = 'seresnext50_32x4d_pretrainedmodels'
+    model_name = 'seresnext50_32x4d_pretrainedmodels'
     #model_name = 'swsl_resnext50_32x4d'  # lr 0.1, bad
     #model_name = 'seresnext101_32x4d'
     #model_name = 'seresnet152d_320'
-    model_name = 'vit_base_patch16_384'
+    #model_name = 'vit_base_patch16_384'
 
     if 'vit' in model_name:
         img_size = 384
@@ -71,7 +71,7 @@ class CFG:
         scheduler = 'step'
         lr = 0.01 # clw modify: for se resnext: 1e-1 for timm ,1e-2 for pretrainedmodels(Taylor Loss)
 
-        # scheduler = 'warmup'  #low in epoch 1
+        # scheduler = 'warmup'
         # lr = 1e-3
 
 
@@ -84,7 +84,7 @@ class CFG:
     n_fold = 5
     #NUM_FOLDS_TO_RUN = [2, ]
     NUM_FOLDS_TO_RUN = [0,1,2,3,4]
-    smoothing = 0.3
+    smoothing = 0.2
     #smoothing = 0.1
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print('model:', model_name)
@@ -94,9 +94,12 @@ class CFG:
     print('batchsize:', batch_size)
     print('epochs:', num_epochs)
 
+
+
 #criterion = TaylorCrossEntropyLoss(class_nums=CFG.num_classes, n=2, smoothing=CFG.smoothing)
-criterion = BiTemperedLogisticLoss(t1=0.8, t2=1.4, smoothing=CFG.smoothing)
-#criterion = LabelSmoothingLoss(CFG.num_classes, CFG.smoothing)
+criterion = BiTemperedLogisticLoss(t1=0.8, t2=1.4, smoothing=CFG.smoothing)  # or 0.3, 1.0 ??
+#criterion = BiTemperedLogisticLoss(t1=0.3, t2=1.0, smoothing=CFG.smoothing)  # or 0.3, 1.0 ??
+# criterion = LabelSmoothingLoss(CFG.num_classes, CFG.smoothing)
 print('criterion:', criterion)
 
 
@@ -161,11 +164,11 @@ class CassavaLeafDataset(nn.Module):
 data_transforms = {
     "train": A.Compose([
         # A.Resize(height=600, width=800),  # clw note: if add 2019, need this
-        A.RandomResizedCrop(CFG.img_size, CFG.img_size, scale=(0.6, 1.0), p=1.),  # clw add scale=(0.8, 1.0)
+        A.RandomResizedCrop(CFG.img_size, CFG.img_size, scale=(0.4, 1.0), p=1.),  # clw add scale=(0.8, 1.0)
         A.Transpose(p=0.5),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
-        A.RandomRotate90(p=0.5),
+        #A.RandomRotate90(p=0.5),
         A.ShiftScaleRotate(p=0.5),
         A.HueSaturationValue(
             hue_shift_limit=0.2,
