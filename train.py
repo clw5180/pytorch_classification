@@ -12,7 +12,7 @@ import torch.utils.data.distributed
 import numpy as np
 from config import configs
 from models.model import get_model
-from utils.misc import get_files, accuracy, AverageMeter, get_lr, adjust_learning_rate, save_checkpoint, get_optimizer
+from utils.misc import get_files, accuracy_onehot, AverageMeter, get_lr, adjust_learning_rate, save_checkpoint, get_optimizer
 from utils.logger import *
 from utils.losses import *
 from progress.bar import Bar
@@ -208,7 +208,7 @@ def main():
     elif configs.loss_func == "CELoss":
         criterion = nn.CrossEntropyLoss()
     elif configs.loss_func == "TaylorCrossEntropyLoss":
-        criterion = TaylorCrossEntropyLoss(n=2, smoothing=configs.label_smooth_epsilon)
+        criterion = TaylorCrossEntropyLoss(class_nums=configs.num_classes, n=2, smoothing=configs.label_smooth_epsilon)
     elif configs.loss_func == "SymmetricCrossEntropy":
         criterion = SymmetricCrossEntropy()
     elif configs.loss_func == "BiTemperedLogisticLoss":
@@ -345,7 +345,7 @@ def train(train_loader, model, criterion, optimizer, epoch, scheduler=None):
 
 
         # measure accuracy and record loss
-        prec1 = accuracy(outputs.data, targets.data, topk=(1,))[0]  # clw note: 这里计算acc； 如果只有两个类，此时top5会报错;
+        prec1 = accuracy_onehot(outputs.data, targets.data, topk=(1,))[0]  # clw note: 这里计算acc； 如果只有两个类，此时top5会报错;
         losses.update(loss.item(), inputs.size(0))
         top1.update(prec1.item(), inputs.size(0))
 

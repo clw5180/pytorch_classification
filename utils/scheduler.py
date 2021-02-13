@@ -195,13 +195,14 @@ class WarmupCosineLR3(torch.optim.lr_scheduler._LRScheduler):
         return lrs
 
 # 参考:SIIM-ISIC-Melanoma-Classification-1st-Place-Solution-master
+# clw note: may have some bug, can be tested by scheduler.step() in while and print lr
 from warmup_scheduler import GradualWarmupScheduler  # !pip install git+https://github.com/ildoonet/pytorch-gradual-warmup-lr.git
 # scheduler
 class GradualWarmupSchedulerV2(GradualWarmupScheduler):
     def __init__(self, optimizer, multiplier, total_epoch, after_scheduler=None):
         super(GradualWarmupSchedulerV2, self).__init__(optimizer, multiplier, total_epoch, after_scheduler)
     def get_lr(self):
-        if self.last_epoch > self.total_epoch:
+        if self.last_epoch > self.total_epoch:  # clw note: ended warm up
             if self.after_scheduler:
                 if not self.finished:
                     self.after_scheduler.base_lrs = [base_lr * self.multiplier for base_lr in self.base_lrs]

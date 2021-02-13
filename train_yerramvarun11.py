@@ -34,61 +34,41 @@ import timm
 import pretrainedmodels
 from utils.utils import rand_bbox
 from utils.scheduler import GradualWarmupSchedulerV2
-from utils.losses.taylorceloss import TaylorCrossEntropyLoss
-from utils.losses.label_smoothing import LabelSmoothingLoss
+
 from utils.losses.bitemperedloss import BiTemperedLogisticLoss
 
+ROOT_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification"
+TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_images"
+
 class CFG:
-    #model_name = 'tf_efficientnet_b3_ns'
-    #model_name = 'seresnext50_32x4d_timm'
-    model_name = 'resnext50_32x4d'
-    #model_name = 'seresnext50_32x4d_pretrainedmodels'
-    #model_name = 'swsl_resnext50_32x4d'  # lr 0.1, bad
-    #model_name = 'seresnext101_32x4d'
-    #model_name = 'seresnet152d_320'
-    #model_name = 'vit_base_patch16_384'
-    #model_name = 'vit_large_patch16_384'
+    model_name = 'tf_efficientnet_b4_ns'
+    img_size = 512
+    #img_size = 456
 
-    if 'vit' in model_name:
-        img_size = 384
-    else:
-        img_size = 512
-
+    T_max = 10
+    T_0 = 10
     optim = 'sgd'
     if optim == 'adam':
-        #num_epochs = 10
-        num_epochs = 12
+        num_epochs = 10
         lr = 1e-4
-        #lr = 3e-4
-
-        T_max = num_epochs
-        T_0 = num_epochs
         scheduler = 'CosineAnnealingWarmRestarts'
     else:
-        num_epochs = 12
-        #num_epochs = 15
-        milestones = [6, 10, 11]
-        #milestones = [9, 13, 14]
-
-        scheduler = 'step'
-        lr = 0.01 # clw modify: for se resnext: 1e-1 for timm ,1e-2 for pretrainedmodels(Taylor Loss)
-
-        #scheduler = 'warmup'  #low in epoch 1
-        #lr = 1e-3
-
-
+        num_epochs = 13
+        milestones = [7, 11, 12]
+        #lr = 1e-1
+        lr = 1e-2
+        scheduler = 'warmup'
     min_lr = 1e-6
+    #batch_size = 16
     batch_size = 32
     weight_decay = 1e-6
     seed = 42
     num_classes = 5
-    n_accumulate = 1  # n_accumulate = 1 means no gradient accumulation is applied
 
     n_fold = 5
     #NUM_FOLDS_TO_RUN = [2, ]
     NUM_FOLDS_TO_RUN = [0,1,2,3,4]
     smoothing = 0.3
-    #smoothing = 0.1
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print('model:', model_name)
     print('optim:', optim)
@@ -96,14 +76,6 @@ class CFG:
     print('scheduler:', scheduler)
     print('batchsize:', batch_size)
     print('epochs:', num_epochs)
-    print('n_accumulate:', n_accumulate)
-
-#criterion = TaylorCrossEntropyLoss(class_nums=CFG.num_classes, n=2, smoothing=CFG.smoothing)
-#criterion = BiTemperedLogisticLoss(t1=0.8, t2=1.4, smoothing=CFG.smoothing)
-criterion = LabelSmoothingLoss(CFG.num_classes, CFG.smoothing)
-print('criterion:', criterion)
-
-
 
 def set_seed(seed=42):
     '''Sets the seed of the entire notebook so results are the same every time we run.
@@ -117,21 +89,9 @@ def set_seed(seed=42):
     # Set a fixed value for the hash seed
     os.environ['PYTHONHASHSEED'] = str(seed)
 
-    torch.backends.cudnn.benchmark = True
-
-
-ROOT_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification"
-TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_images"
-df = pd.read_csv(f"{ROOT_DIR}/train.csv")
-
-# ROOT_DIR = "/home/user/dataset/kaggle_cassava_merge"
-# TRAIN_DIR = "/home/user/dataset/kaggle_cassava_merge/train"
-# df = pd.read_csv(f"{ROOT_DIR}/merged.csv")
-
-#TEST_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/test_images"
 
 set_seed(CFG.seed)
-
+df = pd.read_csv(f"{ROOT_DIR}/train.csv")
 
 #skf = StratifiedKFold(n_splits=CFG.n_fold)
 skf = StratifiedKFold(n_splits=CFG.n_fold, shuffle=True, random_state=CFG.seed)  # Otherwise your folds could intersect during different launching for training and it will lead to decreasing of the accuracy if you will use k-fold ansable for the submittion.
@@ -165,12 +125,10 @@ class CassavaLeafDataset(nn.Module):
 data_transforms = {
     "train": A.Compose([
         # A.Resize(height=600, width=800),  # clw note: if add 2019, need this
-        A.RandomResizedCrop(CFG.img_size, CFG.img_size, scale=(0.5, 1.0), p=0.5),  # clw add scale=(0.8, 1.0)
-        #A.Resize(height=CFG.img_size, width=CFG.img_size),
+        A.RandomResizedCrop(CFG.img_size, CFG.img_size, scale=(0.4, 1.0), p=1.),  # clw add scale=(0.8, 1.0)
         A.Transpose(p=0.5),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
-        A.RandomRotate90(p=0.5),
         A.ShiftScaleRotate(p=0.5),
         A.HueSaturationValue(
             hue_shift_limit=0.2,
@@ -183,7 +141,6 @@ data_transforms = {
             contrast_limit=(-0.1, 0.1),
             p=0.5
         ),
-        A.CenterCrop(CFG.img_size, CFG.img_size),
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225],
@@ -197,9 +154,8 @@ data_transforms = {
 
 
     "valid": A.Compose([
-        ##A.Resize(CFG.img_size, CFG.img_size),
-
         A.Resize(600, 800),
+        #A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
         A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
@@ -209,6 +165,64 @@ data_transforms = {
         ),
         ToTensorV2()], p=1.)
 }
+
+
+# implementations reference - https://github.com/CoinCheung/pytorch-loss/blob/master/pytorch_loss/taylor_softmax.py
+# paper - https://www.ijcai.org/Proceedings/2020/0305.pdf
+
+class TaylorSoftmax(nn.Module):
+
+    def __init__(self, dim=1, n=2):
+        super(TaylorSoftmax, self).__init__()
+        assert n % 2 == 0
+        self.dim = dim
+        self.n = n
+
+    def forward(self, x):
+        fn = torch.ones_like(x)
+        denor = 1.
+        for i in range(1, self.n + 1):
+            denor *= i
+            fn = fn + x.pow(i) / denor
+        out = fn / fn.sum(dim=self.dim, keepdims=True)
+        return out
+
+
+class LabelSmoothingLoss(nn.Module):
+
+    def __init__(self, classes, smoothing=0.0, dim=-1):
+        super(LabelSmoothingLoss, self).__init__()
+        self.confidence = 1.0 - smoothing
+        self.smoothing = smoothing
+        self.cls = classes
+        self.dim = dim
+
+    def forward(self, pred, target):
+        """Taylor Softmax and log are already applied on the logits"""
+        # pred = pred.log_softmax(dim=self.dim)
+        with torch.no_grad():
+            true_dist = torch.zeros_like(pred)
+            true_dist.fill_(self.smoothing / (self.cls - 1))
+            true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
+        return torch.mean(torch.sum(-true_dist * pred, dim=self.dim))
+
+
+class TaylorCrossEntropyLoss(nn.Module):
+
+    def __init__(self, n=2, ignore_index=-1, reduction='mean', smoothing=0.2):
+        super(TaylorCrossEntropyLoss, self).__init__()
+        assert n % 2 == 0
+        self.taylor_softmax = TaylorSoftmax(dim=1, n=n)
+        self.reduction = reduction
+        self.ignore_index = ignore_index
+        self.lab_smooth = LabelSmoothingLoss(CFG.num_classes, smoothing=smoothing)
+
+    def forward(self, logits, labels):
+        log_probs = self.taylor_softmax(logits).log()
+        # loss = F.nll_loss(log_probs, labels, reduction=self.reduction,
+        #        ignore_index=self.ignore_index)
+        loss = self.lab_smooth(log_probs, labels)
+        return loss
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders, dataset_sizes, device, fold):
@@ -233,7 +247,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
             running_corrects = 0.0
 
             # Iterate over data
-            for step, (inputs, labels) in enumerate(tqdm(dataloaders[phase])):
+            for inputs, labels in tqdm(dataloaders[phase]):
                 inputs = inputs.to(CFG.device)
                 labels = labels.to(CFG.device)
 
@@ -243,7 +257,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
                 # forward
                 # track history if only in train
                 if phase == 'train':
-                    cut_mix_prob = 0.5
+                    cut_mix_prob = 1.0
                 else:
                     cut_mix_prob = 0
                 with torch.set_grad_enabled(phase == 'train'):
@@ -251,8 +265,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
                         ##############################
                         if np.random.rand() < cut_mix_prob:
                             # generate mixed sample
-                            # lam = np.random.beta(1.0, 1.0)
-                            lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
+                            lam = np.random.beta(1.0, 1.0)  # clw note: official version
+                            #lam = np.clip(np.random.beta(1, 1), 0.3, 0.4)
                             rand_index = torch.randperm(inputs.size()[0]).cuda()
                             target_a = labels
                             target_b = labels[rand_index]
@@ -263,11 +277,11 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
                             # compute output
                             outputs = model(inputs)
                             # loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)
-                            loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (1. - lam)  #### no label smooth when using cutmix
+                            loss = criterion(outputs, target_a) * lam + criterion(outputs, target_b) * (
+                                        1. - lam)  #### no label smooth when using cutmix
                         else:
                             outputs = model(inputs)
                             loss = criterion(outputs, labels)
-                        loss = loss / CFG.n_accumulate
                         _, preds = torch.max(outputs, 1)
                         ################
                         # outputs = model(inputs)
@@ -276,10 +290,9 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
 
                     # backward + optimize only if in training phase
                     if phase == 'train':
-                        if (step + 1) % CFG.n_accumulate == 0:
-                            scaler.scale(loss).backward()
-                            scaler.step(optimizer)
-                            scaler.update()
+                        scaler.scale(loss).backward()
+                        scaler.step(optimizer)
+                        scaler.update()
 
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data).double().item()
@@ -299,8 +312,8 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
             # deep copy the model
             if phase == 'valid' and epoch_acc >= best_acc:
                 best_acc = epoch_acc
-                #PATH = f"Fold{fold}_{best_acc}_epoch{epoch}_v2.bin"
-                PATH = f"Fold{fold}_{best_acc}_epoch{epoch}_{CFG.model_name}_v7.bin"
+                best_model_wts = copy.deepcopy(model.state_dict())
+                PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
                 torch.save(model.state_dict(), PATH)
 
         print()
@@ -357,11 +370,18 @@ def fetch_scheduler(optimizer):
         scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
     elif CFG.scheduler == 'warmup':
         warmup_epochs = 1
-        #scheduler_cosine = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, CFG.num_epochs - warmup_epochs)
+        #scheduler_normal = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, CFG.num_epochs - warmup_epochs)
         scheduler_normal = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
         scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=10, total_epoch=warmup_epochs, after_scheduler=scheduler_normal)
     elif CFG.scheduler == None:
         return None
+
+    # count = 0
+    # while(count < 20):
+    #     count+=1
+    #     print('lr:', scheduler.get_last_lr())
+    #     scheduler.step()
+
     return scheduler
 
 
@@ -370,40 +390,9 @@ def fetch_scheduler(optimizer):
 accs = []
 for fold in CFG.NUM_FOLDS_TO_RUN:
     ### clw modify: move these in the for loop
-    if 'eff' in CFG.model_name:
-        model = timm.create_model(CFG.model_name, pretrained=True)
-        num_features = model.classifier.in_features
-        model.classifier = nn.Linear(num_features, CFG.num_classes)
-    elif 'seresnext50_32x4d_timm' in CFG.model_name:
-        model = timm.create_model('seresnext50_32x4d', pretrained=True)
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, CFG.num_classes)
-    elif 'resnext50_32x4d' in CFG.model_name:
-        model = timm.create_model('resnext50_32x4d', pretrained=True)
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, CFG.num_classes)
-    elif 'seresnext50_32x4d_pretrainedmodels' in CFG.model_name:
-        model = pretrainedmodels.se_resnext50_32x4d(pretrained='imagenet')
-        model.last_linear=nn.Linear(2048, CFG.num_classes)
-        model.avg_pool = nn.AdaptiveAvgPool2d(1)
-    elif 'seresnext101' in CFG.model_name:
-        model = pretrainedmodels.se_resnext101_32x4d(pretrained='imagenet')
-        model.last_linear=nn.Linear(2048, CFG.num_classes)
-        model.avg_pool = nn.AdaptiveAvgPool2d(1)
-    elif 'seresnet152' in CFG.model_name:
-        model = timm.create_model(CFG.model_name, pretrained=True)
-        num_features = model.fc.in_features
-        model.fc = nn.Linear(num_features, CFG.num_classes)
-    elif 'vit' in CFG.model_name:
-        model = timm.create_model(CFG.model_name, pretrained=True, num_classes=CFG.num_classes)  # , drop_rate=0.1)
-        model.head = nn.Linear(model.head.in_features, CFG.num_classes)
-    elif 'swsl_resnext50_32x4d' in CFG.model_name:
-        model = timm.create_model('swsl_resnext50_32x4d', pretrained=True, num_classes=CFG.num_classes)  # , drop_rate=0.1)
-        model.fc = nn.Linear(model.fc.in_features, CFG.num_classes)
-
-    else:
-        assert False
-
+    model = timm.create_model(CFG.model_name, pretrained=True)
+    num_features = model.classifier.in_features
+    model.classifier = nn.Linear(num_features, CFG.num_classes)
     model.to(CFG.device)
 
     if CFG.optim == 'adam':
@@ -411,7 +400,8 @@ for fold in CFG.NUM_FOLDS_TO_RUN:
     else:
         optimizer = optim.SGD(model.parameters(), lr=CFG.lr, momentum=0.9, weight_decay=CFG.weight_decay, nesterov=True)
 
-
+    #criterion = TaylorCrossEntropyLoss(n=2, smoothing=CFG.smoothing)
+    criterion = BiTemperedLogisticLoss(t1=0.8, t2=1.4, smoothing=CFG.smoothing)
     scheduler = fetch_scheduler(optimizer)
     ###
 
