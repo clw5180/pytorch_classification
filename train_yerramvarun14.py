@@ -47,8 +47,8 @@ TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_ima
 class CFG:
     #model_name = 'resnext101_32x4d_pretrainedmodels'
     #model_name = 'swsl_resnext101_32x4d'
-    #model_name = 'seresnext50_32x4d_timm'
-    model_name = 'seresnext50_32x4d_pretrainedmodels'
+    model_name = 'seresnext50_32x4d_timm'
+    #model_name = 'seresnext50_32x4d_pretrainedmodels'
     img_size = 512
 
     T_max = 10
@@ -338,23 +338,22 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
             history[phase + ' loss'].append(epoch_loss)
             history[phase + ' acc'].append(epoch_acc)
 
-            if phase == 'train' and scheduler != None:
-                if CFG.scheduler != 'on_acc':
-                    scheduler.step()
-            if phase == 'val' and CFG.scheduler == 'on_acc':
-                scheduler.step(epoch_acc)
+        if phase == 'train' and scheduler != None:
+            if CFG.scheduler != 'on_acc':
+                scheduler.step()
+        if phase == 'valid' and CFG.scheduler == 'on_acc':
+            scheduler.step(epoch_acc)
 
-            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-                phase, epoch_loss, epoch_acc))
+        print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+            phase, epoch_loss, epoch_acc))
 
-            # deep copy the model
-            if phase == 'valid' and epoch_acc >= best_acc:
-                best_acc = epoch_acc
-                best_model_wts = copy.deepcopy(model.state_dict())
-                PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
-                torch.save(model.state_dict(), PATH)
+        # deep copy the model
+        if phase == 'valid' and epoch_acc >= best_acc:
+            best_acc = epoch_acc
+            best_model_wts = copy.deepcopy(model.state_dict())
+            PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
+            torch.save(model.state_dict(), PATH)
 
-        print()
 
     end = time.time()
     time_elapsed = end - start
@@ -407,7 +406,8 @@ def fetch_scheduler(optimizer):
     elif CFG.scheduler == 'step':
         scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
     elif CFG.scheduler == 'on_acc':
-        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
+        #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.1, patience=2, verbose=False)
     elif CFG.scheduler == 'warmup':
         warmup_epochs = 1
         #scheduler_normal = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, CFG.num_epochs - warmup_epochs)
@@ -419,8 +419,10 @@ def fetch_scheduler(optimizer):
     # count = 0
     # while(count < 20):
     #     count+=1
-    #     print('lr:', scheduler.get_last_lr())
-    #     scheduler.step()
+    #     #print('lr:', scheduler.get_last_lr())
+    #     #print('lr:', scheduler.get_lr())
+    #     print('lr:', optimizer.param_groups[0]['lr'], 'count:', count % 4)
+    #     scheduler.step(count % 4)
 
     return scheduler
 
