@@ -38,18 +38,27 @@ from utils.scheduler import GradualWarmupSchedulerV2
 from progress.bar import Bar
 from utils.misc import AverageMeter, accuracy
 
+from utils.losses.label_smoothing import LabelSmoothingLoss
+
 torch.backends.cudnn.benchmark = True
 
 
-ROOT_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification"
-TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_images"
+# ROOT_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification"
+# TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_images"
+# df = pd.read_csv(f"{ROOT_DIR}/train.csv")
+
+ROOT_DIR = "/home/user/dataset/kaggle_cassava_merge"
+TRAIN_DIR = "/home/user/dataset/kaggle_cassava_merge/train"
+df = pd.read_csv(f"{ROOT_DIR}/merged.csv")
 
 class CFG:
     #model_name = 'resnext101_32x4d_pretrainedmodels'
     #model_name = 'swsl_resnext101_32x4d'
     #model_name = 'seresnext50_32x4d_timm'
-    model_name = 'seresnext50_32x4d_pretrainedmodels'
-    img_size = 512
+    #model_name = 'seresnext50_32x4d_pretrainedmodels'
+    #model_name = 'vit'
+    model_name = 'tf_efficientnet_b6_ns'
+    img_size = 512 if not 'vit' in model_name else 384
     #optim = 'sgd'
     optim = 'sgd'
 
@@ -60,19 +69,20 @@ class CFG:
         lr = 3e-4
         scheduler = 'on_acc'
     else:
-        num_epochs = 20
-        #milestones = [7, 11, 12]
-        #lr = 1e-2
-        #lr = 5e-4
-        #scheduler = 'warmup'
-        lr = 1e-2
-        scheduler = 'on_acc'
+        num_epochs = 13
+        milestones = [6, 11]
+        warmup_ratio=0.001
+        lr = 1e-1 * warmup_ratio  # clw note: better plot lr curve , or print lr to ensure;  TODO
+        scheduler = 'warmup'
 
-    T_max = num_epochs
-    T_0 = num_epochs
-    min_lr = 1e-7
-    #batch_size = 16
-    batch_size = 32
+        # num_epochs = 13
+        # milestones = [7, 11]
+        # lr = 1e-2  # clw note: better plot lr curve , or print lr to ensure;  TODO
+        # scheduler = 'step'
+
+    min_lr = lr / warmup_ratio * 0.000001
+    batch_size = 16
+    #batch_size = 32
     weight_decay = 1e-6
     seed = 42
     num_classes = 5
@@ -84,7 +94,7 @@ class CFG:
     device = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
     print('model:', model_name)
     print('optim:', optim)
-    print('lr:', lr)
+    print('lr:', lr/warmup_ratio)
     print('scheduler:', scheduler)
     print('batchsize:', batch_size)
     print('epochs:', num_epochs)
@@ -103,7 +113,7 @@ def set_seed(seed=42):
 
 
 set_seed(CFG.seed)
-df = pd.read_csv(f"{ROOT_DIR}/train.csv")
+
 
 #skf = StratifiedKFold(n_splits=CFG.n_fold)
 skf = StratifiedKFold(n_splits=CFG.n_fold, shuffle=True, random_state=CFG.seed)  # Otherwise your folds could intersect during different launching for training and it will lead to decreasing of the accuracy if you will use k-fold ansable for the submittion.
@@ -137,17 +147,18 @@ class CassavaLeafDataset(nn.Module):
 data_transforms = {
     "train": A.Compose([
         # A.Resize(height=600, width=800),  # clw note: if add 2019, need this
-        A.RandomResizedCrop(CFG.img_size, CFG.img_size, scale=(0.4, 1.0), p=1.),  # clw add scale=(0.8, 1.0)
+        A.RandomResizedCrop(CFG.img_size, CFG.img_size, scale=(0.6, 1.0), p=1.),  # clw add scale=(0.8, 1.0)
         A.Transpose(p=0.5),
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.ShiftScaleRotate(p=0.5),
-        A.HueSaturationValue(
-            hue_shift_limit=0.2,
-            sat_shift_limit=0.2,
-            val_shift_limit=0.2,
-            p=0.5
-        ),
+        A.RandomRotate90(p=0.5),
+        # A.HueSaturationValue(
+        #     hue_shift_limit=0.2,
+        #     sat_shift_limit=0.2,
+        #     val_shift_limit=0.2,
+        #     p=0.5
+        # ),
         A.RandomBrightnessContrast(
             brightness_limit=(-0.1, 0.1),
             contrast_limit=(-0.1, 0.1),
@@ -162,13 +173,27 @@ data_transforms = {
         #A.CoarseDropout(p=0.5, max_height=32, max_width=32),  # clw modify
         A.CoarseDropout(p=0.5),
         A.Cutout(p=0.5),
+        # A.OneOf([
+        #     A.GridDropout(p=1, holes_number_x = 8,  holes_number_y = 8, random_offset=True, unit_size_min=100, unit_size_max=150),
+        #     A.CoarseDropout(p=1)], p=0.7),
         ToTensorV2()], p=1.),
+
+    # "train": A.Compose([
+    #     A.ShiftScaleRotate(always_apply=False, p=0.5, shift_limit_x=(0, 0), shift_limit_y=(0, 0),
+    #                        scale_limit=(-0.050000000000000044, 0.050000000000000044), rotate_limit=(-20, 20),
+    #                        interpolation=1, border_mode=0, value=None, mask_value=None),
+    #     A.Resize(CFG.img_size, CFG.img_size),  # clw add scale=(0.8, 1.0)
+    #     A.HorizontalFlip(always_apply=False, p=0.5),
+    #     A.VerticalFlip(always_apply=False, p=0.5),
+    #     A.Transpose(always_apply=False, p=0.5),
+    #     A.CoarseDropout(always_apply=False, p=0.3, max_holes=8, max_height=16, max_width=16, min_holes=8, min_height=16, min_width=16, fill_value=0, mask_fill_value=None),
+    #     A.Normalize(always_apply=False, p=1.0, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0),
+    #     ToTensorV2(always_apply=True, p=1.0, transpose_mask=False)]),
 
 
     "valid": A.Compose([
-        A.Resize(600, 800),
+        A.Resize(CFG.img_size, CFG.img_size),
         #A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
-        A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225],
@@ -177,64 +202,6 @@ data_transforms = {
         ),
         ToTensorV2()], p=1.)
 }
-
-
-# implementations reference - https://github.com/CoinCheung/pytorch-loss/blob/master/pytorch_loss/taylor_softmax.py
-# paper - https://www.ijcai.org/Proceedings/2020/0305.pdf
-
-class TaylorSoftmax(nn.Module):
-
-    def __init__(self, dim=1, n=2):
-        super(TaylorSoftmax, self).__init__()
-        assert n % 2 == 0
-        self.dim = dim
-        self.n = n
-
-    def forward(self, x):
-        fn = torch.ones_like(x)
-        denor = 1.
-        for i in range(1, self.n + 1):
-            denor *= i
-            fn = fn + x.pow(i) / denor
-        out = fn / fn.sum(dim=self.dim, keepdims=True)
-        return out
-
-
-class LabelSmoothingLoss(nn.Module):
-
-    def __init__(self, classes, smoothing=0.0, dim=-1):
-        super(LabelSmoothingLoss, self).__init__()
-        self.confidence = 1.0 - smoothing
-        self.smoothing = smoothing
-        self.cls = classes
-        self.dim = dim
-
-    def forward(self, pred, target):
-        """Taylor Softmax and log are already applied on the logits"""
-        # pred = pred.log_softmax(dim=self.dim)
-        with torch.no_grad():
-            true_dist = torch.zeros_like(pred)
-            true_dist.fill_(self.smoothing / (self.cls - 1))
-            true_dist.scatter_(1, target.data.unsqueeze(1), self.confidence)
-        return torch.mean(torch.sum(-true_dist * pred, dim=self.dim))
-
-
-class TaylorCrossEntropyLoss(nn.Module):
-
-    def __init__(self, n=2, ignore_index=-1, reduction='mean', smoothing=0.2):
-        super(TaylorCrossEntropyLoss, self).__init__()
-        assert n % 2 == 0
-        self.taylor_softmax = TaylorSoftmax(dim=1, n=n)
-        self.reduction = reduction
-        self.ignore_index = ignore_index
-        self.lab_smooth = LabelSmoothingLoss(CFG.num_classes, smoothing=smoothing)
-
-    def forward(self, logits, labels):
-        log_probs = self.taylor_softmax(logits).log()
-        # loss = F.nll_loss(log_probs, labels, reduction=self.reduction,
-        #        ignore_index=self.ignore_index)
-        loss = self.lab_smooth(log_probs, labels)
-        return loss
 
 
 def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders, dataset_sizes, device, fold):
@@ -316,6 +283,10 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
                         scaler.step(optimizer)
                         scaler.update()
 
+                        if CFG.scheduler == 'warmup' and epoch == 1:
+                            scheduler.step()
+                        # aaa = scheduler.get_last_lr()[0]
+                        # print(aaa)
 
                 running_loss += loss.item() * inputs.size(0)
                 running_corrects += torch.sum(preds == labels.data).double().item()
@@ -340,24 +311,24 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
             history[phase + ' loss'].append(epoch_loss)
             history[phase + ' acc'].append(epoch_acc)
 
-        if phase == 'train' and scheduler != None:
-            if CFG.scheduler != 'on_acc':
-                scheduler.step()
-        if phase == 'valid' and CFG.scheduler == 'on_acc':
-            scheduler.step(epoch_acc)
-            cur_lr = optimizer.param_groups[0]['lr']
-            if cur_lr != CFG.lr:
-                scheduler.factor = 0.1
+            if phase == 'train' and scheduler != None:
+                if CFG.scheduler != 'on_acc':
+                    scheduler.step()
+            if phase == 'valid' and CFG.scheduler == 'on_acc':
+                scheduler.step(epoch_acc)
+                cur_lr = optimizer.param_groups[0]['lr']
+                if cur_lr != CFG.lr:
+                    scheduler.factor = 0.1
 
-        print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-            phase, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
 
-        # deep copy the model
-        if phase == 'valid' and epoch_acc >= best_acc:
-            best_acc = epoch_acc
-            best_model_wts = copy.deepcopy(model.state_dict())
-            PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
-            torch.save(model.state_dict(), PATH)
+            # deep copy the model
+            if phase == 'valid' and epoch_acc >= best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+                PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
+                torch.save(model.state_dict(), PATH)
 
 
     end = time.time()
@@ -372,7 +343,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
     return history, best_acc  # clw modify
 
 
-def run_fold(model, criterion, optimizer, scheduler, device, fold, num_epochs=10):
+def run_fold(model, criterion, optimizer, device, fold, num_epochs=10):
     valid_df = df[df.kfold == fold]
     train_df = df[df.kfold != fold]
 
@@ -394,32 +365,24 @@ def run_fold(model, criterion, optimizer, scheduler, device, fold, num_epochs=10
         'valid': valid_loader
     }
 
-    #model, history, best_acc = train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,dataset_sizes, device, fold)
-    history, best_acc = train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,dataset_sizes, device, fold)  # clw modify
-
-    #return model, history, best_acc
-    return history, best_acc  # clw modify
-
-
-
-
-def fetch_scheduler(optimizer):
+    # scheduler = fetch_scheduler(optimizer)
     if CFG.scheduler == 'CosineAnnealingLR':
-        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=CFG.T_max, eta_min=CFG.min_lr)
+        scheduler = lr_scheduler.CosineAnnealingLR(optimizer, T_max=CFG.num_epochs, eta_min=CFG.min_lr)
     elif CFG.scheduler == 'CosineAnnealingWarmRestarts':
-        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=CFG.T_0, T_mult=1, eta_min=CFG.min_lr)
+        scheduler = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=CFG.num_epochs, T_mult=1, eta_min=CFG.min_lr)
     elif CFG.scheduler == 'step':
         scheduler = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
     elif CFG.scheduler == 'on_acc':
         #scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='min', factor=0.1, patience=4, verbose=False)
         scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(optimizer, mode='max', factor=0.3, patience=2, verbose=False)
     elif CFG.scheduler == 'warmup':
-        warmup_epochs = 1
-        #scheduler_normal = torch.optim.lr_scheduler.CosineAnnealingWarmRestarts(optimizer, CFG.num_epochs - warmup_epochs)
-        scheduler_normal = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
-        scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=10, total_epoch=warmup_epochs, after_scheduler=scheduler_normal)
+        warmup_epochs = len(train_loader)
+        scheduler_normal = lr_scheduler.CosineAnnealingWarmRestarts(optimizer, T_0=CFG.num_epochs-1, eta_min=CFG.min_lr)
+        #scheduler_normal = lr_scheduler.MultiStepLR(optimizer, milestones=CFG.milestones, gamma=0.1)
+        #scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=10, total_epoch=warmup_epochs, after_scheduler=scheduler_normal)
+        scheduler = GradualWarmupSchedulerV2(optimizer, multiplier=1/CFG.warmup_ratio, total_epoch=warmup_epochs, after_scheduler=scheduler_normal)
     elif CFG.scheduler == None:
-        return None
+        assert False
 
     # count = 0
     # while(count < 20):
@@ -431,7 +394,14 @@ def fetch_scheduler(optimizer):
     #     if count == 6:
     #         scheduler.factor = 0.1
 
-    return scheduler
+
+
+    #model, history, best_acc = train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,dataset_sizes, device, fold)
+    history, best_acc = train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,dataset_sizes, device, fold)  # clw modify
+
+    #return model, history, best_acc
+    return history, best_acc  # clw modify
+
 
 
 
@@ -482,13 +452,13 @@ for fold in CFG.NUM_FOLDS_TO_RUN:
     else:
         optimizer = optim.SGD(model.parameters(), lr=CFG.lr, momentum=0.9, weight_decay=CFG.weight_decay, nesterov=True)
 
-    criterion = TaylorCrossEntropyLoss(n=2, smoothing=CFG.smoothing)
-    scheduler = fetch_scheduler(optimizer)
+    criterion = LabelSmoothingLoss(class_nums=CFG.num_classes, label_smoothing=CFG.smoothing)
+
     ###
 
     print(f"\nFOLD: {fold}")
     #model, history, ba = run_fold(model, criterion, optimizer, scheduler, device=CFG.device, fold=fold, num_epochs=CFG.num_epochs)
-    history, ba = run_fold(model, criterion, optimizer, scheduler, device=CFG.device, fold=fold, num_epochs=CFG.num_epochs)  # clw modify
+    history, ba = run_fold(model, criterion, optimizer, device=CFG.device, fold=fold, num_epochs=CFG.num_epochs)  # clw modify
     accs.append(ba)
 
 print(f"MEAN_ACC - {sum(accs)/len(accs)}")

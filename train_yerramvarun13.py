@@ -43,11 +43,10 @@ TRAIN_DIR = "/home/user/dataset/kaggle2020-leaf-disease-classification/train_ima
 
 class CFG:
     #model_name = 'resnext101_32x4d_pretrainedmodels'
-    model_name = 'swsl_resnext101_32x4d'
+    #model_name = 'swsl_resnext101_32x4d'
+    model_name = 'seresnext50_32x4d_pretrainedmodels'
     img_size = 512
 
-    T_max = 10
-    T_0 = 10
     optim = 'sgd'
     if optim == 'adam':
         num_epochs = 10
@@ -56,10 +55,12 @@ class CFG:
     else:
         num_epochs = 13
         milestones = [7, 11, 12]
-        #lr = 1e-2
-        lr = 5e-4
+        lr = 1e-3  # clw note: better plot lr curve , or print lr to ensure;  TODO
+        #lr = 5e-4
         scheduler = 'warmup'
-    min_lr = 1e-6
+    T_max = num_epochs
+    T_0 = num_epochs
+    min_lr = 1e-7
     #batch_size = 16
     batch_size = 32
     weight_decay = 1e-6
@@ -131,12 +132,12 @@ data_transforms = {
         A.HorizontalFlip(p=0.5),
         A.VerticalFlip(p=0.5),
         A.ShiftScaleRotate(p=0.5),
-        A.HueSaturationValue(
-            hue_shift_limit=0.2,
-            sat_shift_limit=0.2,
-            val_shift_limit=0.2,
-            p=0.5
-        ),
+        # A.HueSaturationValue(
+        #     hue_shift_limit=0.2,
+        #     sat_shift_limit=0.2,
+        #     val_shift_limit=0.2,
+        #     p=0.5
+        # ),
         A.RandomBrightnessContrast(
             brightness_limit=(-0.1, 0.1),
             contrast_limit=(-0.1, 0.1),
@@ -155,9 +156,9 @@ data_transforms = {
 
 
     "valid": A.Compose([
-        A.Resize(600, 800),
+        A.Resize(CFG.img_size, CFG.img_size),
         #A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
-        A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
+        #A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225],

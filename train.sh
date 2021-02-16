@@ -1,5 +1,17 @@
-sleep 25m
-python train_yerramvarun14.py
+# 20210215
+python train_yerramvarun15.py
+wait
+python train_yerramvarun16.py
+
+
+# 20210214
+#sleep 1.3h
+#python train_yerramvarun13.py
+
+
+# 20210213
+#sleep 25m
+#python train_yerramvarun14.py
 
 # 20210208  effb5, 456 bitemperedloss and effb4 512 TaylorLoss, cutmix_prob is all 1.0(by official version)
 #sleep 15m

@@ -3,7 +3,7 @@ from torch import nn
 import torch.nn.functional as F
 
 
-class LabelSmoothingLoss(nn.Module):  # 单纯的label_smooth, 如果有图像混合类的数据增强如cutmix, mixup,就不能用
+class LabelSmoothingLoss(nn.Module):  # clw note: 标签无论是单独的0 1 2 3,还是onehot类型,都可以用,这里已经做了兼容  if len(target.shape) == 2
     def __init__(self, class_nums, label_smoothing, ignore_index=-100):
         assert 0.0 < label_smoothing <= 1.0
         self.ignore_index = ignore_index

@@ -49,7 +49,8 @@ class CFG:
     #model_name = 'swsl_resnext101_32x4d'
     #model_name = 'seresnext50_32x4d_timm'
     model_name = 'seresnext50_32x4d_pretrainedmodels'
-    img_size = 512
+    #model_name = 'vit'
+    img_size = 512 if not 'vit' in model_name else 384
     #optim = 'sgd'
     optim = 'sgd'
 
@@ -60,13 +61,15 @@ class CFG:
         lr = 3e-4
         scheduler = 'on_acc'
     else:
-        num_epochs = 20
-        #milestones = [7, 11, 12]
-        #lr = 1e-2
-        #lr = 5e-4
-        #scheduler = 'warmup'
-        lr = 1e-2
-        scheduler = 'on_acc'
+        # num_epochs = 15
+        # milestones = [6, 11, 12]
+        # lr = 1e-3  # clw note: better plot lr curve , or print lr to ensure;  TODO
+        # scheduler = 'warmup'
+
+        num_epochs = 13
+        milestones = [7, 11]
+        lr = 1e-2  # clw note: better plot lr curve , or print lr to ensure;  TODO
+        scheduler = 'step'
 
     T_max = num_epochs
     T_0 = num_epochs
@@ -164,11 +167,22 @@ data_transforms = {
         A.Cutout(p=0.5),
         ToTensorV2()], p=1.),
 
+    # "train": A.Compose([
+    #     A.ShiftScaleRotate(always_apply=False, p=0.5, shift_limit_x=(0, 0), shift_limit_y=(0, 0),
+    #                        scale_limit=(-0.050000000000000044, 0.050000000000000044), rotate_limit=(-20, 20),
+    #                        interpolation=1, border_mode=0, value=None, mask_value=None),
+    #     A.Resize(CFG.img_size, CFG.img_size),  # clw add scale=(0.8, 1.0)
+    #     A.HorizontalFlip(always_apply=False, p=0.5),
+    #     A.VerticalFlip(always_apply=False, p=0.5),
+    #     A.Transpose(always_apply=False, p=0.5),
+    #     A.CoarseDropout(always_apply=False, p=0.3, max_holes=8, max_height=16, max_width=16, min_holes=8, min_height=16, min_width=16, fill_value=0, mask_fill_value=None),
+    #     A.Normalize(always_apply=False, p=1.0, mean=(0.485, 0.456, 0.406), std=(0.229, 0.224, 0.225), max_pixel_value=255.0),
+    #     ToTensorV2(always_apply=True, p=1.0, transpose_mask=False)]),
+
 
     "valid": A.Compose([
-        A.Resize(600, 800),
+        A.Resize(CFG.img_size, CFG.img_size),
         #A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
-        A.CenterCrop(CFG.img_size, CFG.img_size, p=1.),  # clw delete
         A.Normalize(
             mean=[0.485, 0.456, 0.406],
             std=[0.229, 0.224, 0.225],
@@ -275,7 +289,7 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
                 # forward
                 # track history if only in train
                 if phase == 'train':
-                    cut_mix_prob = 1.0
+                    cut_mix_prob = 0.0
                 else:
                     cut_mix_prob = 0
                 with torch.set_grad_enabled(phase == 'train'):
@@ -340,24 +354,24 @@ def train_model(model, criterion, optimizer, scheduler, num_epochs, dataloaders,
             history[phase + ' loss'].append(epoch_loss)
             history[phase + ' acc'].append(epoch_acc)
 
-        if phase == 'train' and scheduler != None:
-            if CFG.scheduler != 'on_acc':
-                scheduler.step()
-        if phase == 'valid' and CFG.scheduler == 'on_acc':
-            scheduler.step(epoch_acc)
-            cur_lr = optimizer.param_groups[0]['lr']
-            if cur_lr != CFG.lr:
-                scheduler.factor = 0.1
+            if phase == 'train' and scheduler != None:
+                if CFG.scheduler != 'on_acc':
+                    scheduler.step()
+            if phase == 'valid' and CFG.scheduler == 'on_acc':
+                scheduler.step(epoch_acc)
+                cur_lr = optimizer.param_groups[0]['lr']
+                if cur_lr != CFG.lr:
+                    scheduler.factor = 0.1
 
-        print('{} Loss: {:.4f} Acc: {:.4f}'.format(
-            phase, epoch_loss, epoch_acc))
+            print('{} Loss: {:.4f} Acc: {:.4f}'.format(
+                phase, epoch_loss, epoch_acc))
 
-        # deep copy the model
-        if phase == 'valid' and epoch_acc >= best_acc:
-            best_acc = epoch_acc
-            best_model_wts = copy.deepcopy(model.state_dict())
-            PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
-            torch.save(model.state_dict(), PATH)
+            # deep copy the model
+            if phase == 'valid' and epoch_acc >= best_acc:
+                best_acc = epoch_acc
+                best_model_wts = copy.deepcopy(model.state_dict())
+                PATH = f"Fold{fold}_{CFG.model_name}_{best_acc}_epoch{epoch}_v2.bin"
+                torch.save(model.state_dict(), PATH)
 
 
     end = time.time()
@@ -482,7 +496,8 @@ for fold in CFG.NUM_FOLDS_TO_RUN:
     else:
         optimizer = optim.SGD(model.parameters(), lr=CFG.lr, momentum=0.9, weight_decay=CFG.weight_decay, nesterov=True)
 
-    criterion = TaylorCrossEntropyLoss(n=2, smoothing=CFG.smoothing)
+    criterion = TaylorCrossEntropyLoss(n=4, smoothing=CFG.smoothing)
+    #criterion = LabelSmoothingLoss(classes=CFG.num_classes, smoothing=CFG.smoothing)
     scheduler = fetch_scheduler(optimizer)
     ###
 
